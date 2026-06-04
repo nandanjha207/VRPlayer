@@ -6,9 +6,11 @@
 import React, {useCallback, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
@@ -27,6 +29,8 @@ export const SAMPLE_MP4_URL =
   'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8';
 
 const SEEK_STEP_SECONDS = 10;
+const VIDEO_HORIZONTAL_PADDING = 32;
+const VIDEO_ASPECT_RATIO = 16 / 9;
 
 export type SimpleVideoPlayerProps = {
   /** Remote or local video URI. */
@@ -75,6 +79,11 @@ function resolvePlaybackState(
 export function SimpleVideoPlayer({
   sourceUri = SAMPLE_MP4_URL,
 }: SimpleVideoPlayerProps) {
+  const {width: windowWidth} = useWindowDimensions();
+  const videoWidth = windowWidth - VIDEO_HORIZONTAL_PADDING;
+  const videoHeight = videoWidth / VIDEO_ASPECT_RATIO;
+  const videoLayoutStyle = {width: videoWidth, height: videoHeight};
+
   const videoRef = useRef<VideoRef>(null);
 
   // Playback control
@@ -238,11 +247,11 @@ export function SimpleVideoPlayer({
 
   return (
     <View style={styles.container}>
-      <View style={styles.videoWrapper}>
+      <View style={[styles.videoWrapper, videoLayoutStyle]}>
         <Video
           ref={videoRef}
           source={buildVideoSource(sourceUri)}
-          style={styles.video}
+          style={videoLayoutStyle}
           resizeMode="contain"
           paused={paused}
           isContentPlaying={isContentPlaying}
@@ -252,6 +261,7 @@ export function SimpleVideoPlayer({
           controls={false}
           playInBackground={false}
           playWhenInactive={false}
+          useTextureView={Platform.OS === 'android'}
           progressUpdateInterval={250}
           onLoad={handleLoad}
           onProgress={handleProgress}
@@ -360,17 +370,17 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   videoWrapper: {
-    width: '100%',
-    aspectRatio: 16 / 9,
+    alignSelf: 'center',
     backgroundColor: '#000000',
     borderRadius: 8,
     overflow: 'hidden',
   },
-  video: {
-    ...StyleSheet.absoluteFill,
-  },
   bufferOverlay: {
-    ...StyleSheet.absoluteFill,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     backgroundColor: 'rgba(0, 0, 0, 0.45)',
     alignItems: 'center',
     justifyContent: 'center',

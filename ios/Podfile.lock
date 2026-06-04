@@ -1516,7 +1516,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-video (6.19.2):
+  - react-native-video (6.14.0):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1528,7 +1528,7 @@ PODS:
     - React-graphics
     - React-ImageManager
     - React-jsi
-    - react-native-video/Video (= 6.19.2)
+    - react-native-video/Video (= 6.14.0)
     - React-NativeModulesApple
     - React-RCTFabric
     - React-renderercss
@@ -1539,7 +1539,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-video/Fabric (6.19.2):
+  - react-native-video/Fabric (6.14.0):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1561,7 +1561,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-video/Video (6.19.2):
+  - react-native-video/Video (6.14.0):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2219,7 +2219,7 @@ SPEC CHECKSUMS:
   React: e2dc35338068bbd299c66f043ae0d7f25de8499e
   React-callinvoker: 28b25d21b124c26cebaea713ba7d801b9351dc48
   React-Core: 02ed7d2ffb70437bdf2aba074a13078a7b0b9ff0
-  React-Core-prebuilt: b070bc5ab109808052082ca84e1011107a9d4b0f
+  React-Core-prebuilt: 9640ddd3f781544ecf1e30b7bb255bd13d61f301
   React-CoreModules: b3a5a42dadcde3b5d47b325bd912eb2ced89e146
   React-cxxreact: fe8f88dda044e5905e99a00f41b7a874c3908716
   React-debug: 92944dc4d89f56d640e75498266cbde557a48189
@@ -2250,7 +2250,7 @@ SPEC CHECKSUMS:
   React-mutationobservernativemodule: a42d1626651ccd7d0dc02a56e69d4ec77c248893
   react-native-safe-area-context: fb5c8ee9f6dd62ef710611b3d370c501f42a4ac0
   react-native-slider: 08ecfc4e9cc16cc388a56dd9caeca51b55cd9bb7
-  react-native-video: db3a70efc9fa0c00f5499d7798283bf0585cbd37
+  react-native-video: b7f39f100d08c9df0d0b396424c1a76427dff735
   React-NativeModulesApple: deba264b03bd79c6bd61014fa30e40321b5e443a
   React-networking: 35e6070b084f435429f85c5db40b4d5b38652fe9
   React-oscompat: 64a0c7ef5441855dc6e2a6afe8ba8f92aa05075e
