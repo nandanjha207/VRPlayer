@@ -10,6 +10,7 @@ import {
   type AppStateStatus,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   useWindowDimensions,
@@ -17,18 +18,33 @@ import {
 } from 'react-native';
 import Slider from '@react-native-community/slider';
 import Video, {
+  SelectedTrackType,
   type OnBufferData,
   type OnLoadData,
   type OnProgressData,
+  type OnTextTracksData,
+  type ReactVideoSource,
+  type SelectedTrack,
+  type TextTracks,
   type VideoRef,
 } from 'react-native-video';
+import {
+  SUBTITLE_PRESETS,
+  resolveSubtitlePresetUri,
+} from './subtitlePresets';
 
 /** Public playback states shown in the UI. */
 export type PlaybackState = 'Playing' | 'Paused' | 'Buffering' | 'Ended';
 
+// HLS
+// export const SAMPLE_MP4_URL =
+//   'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8';
 
+// DASH (iOS) / HLS (Android)
 export const SAMPLE_MP4_URL =
-  'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8';
+  Platform.OS === 'android'
+    ? 'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8'
+    : 'https://storage.googleapis.com/wvmedia/clear/h264/tears/tears.mpd';
 
 const SEEK_STEP_SECONDS = 10;
 const VIDEO_HORIZONTAL_PADDING = 32;
@@ -40,12 +56,34 @@ export type SimpleVideoPlayerProps = {
   sourceUri?: string;
 };
 
-/** Builds a react-native-video source object (adds type for HLS). */
-function buildVideoSource(uri: string) {
-  if (uri.toLowerCase().includes('.m3u8')) {
-    return {uri, type: 'm3u8' as const};
+/** Builds a react-native-video source object with optional sidecar subtitles. */
+function buildVideoSource(
+  uri: string,
+  sidecarTextTracks?: TextTracks,
+): ReactVideoSource {
+  const lower = uri.toLowerCase();
+  let type: string | undefined;
+  if (lower.includes('.m3u8')) {
+    type = 'm3u8';
+  } else if (lower.includes('.mpd')) {
+    type = 'mpd';
+  } else if (lower.includes('.mkv')) {
+    type = 'mkv';
   }
-  return {uri};
+
+  return {
+    uri,
+    ...(type ? {type} : {}),
+    ...(sidecarTextTracks?.length ? {textTracks: sidecarTextTracks} : {}),
+  };
+}
+
+function formatTextTrackLabel(
+  track: OnLoadData['textTracks'][number],
+  index: number,
+): string {
+  const parts = [track.language, track.title].filter(Boolean);
+  return parts.length > 0 ? parts.join(' – ') : `Track ${index}`;
 }
 
 /** Formats seconds as m:ss for the time labels. */
@@ -107,6 +145,17 @@ export function SimpleVideoPlayer({
   const [loopCount, setLoopCount] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
 
+  // Subtitles (TC-SUB-001 … 006)
+  const [subtitlePresetId, setSubtitlePresetId] = useState('webvtt');
+  const [availableTextTracks, setAvailableTextTracks] = useState<
+    OnLoadData['textTracks']
+  >([]);
+  const [selectedTextTrack, setSelectedTextTrack] = useState<SelectedTextTrack>(
+    {type: SelectedTrackType.DISABLED},
+  );
+  const [subtitleFontSize, setSubtitleFontSize] = useState(18);
+  const [subtitleOpacity, setSubtitleOpacity] = useState(1);
+
   // Timeline
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
@@ -119,6 +168,47 @@ export function SimpleVideoPlayer({
   const volumeBeforeMuteRef = useRef(1);
 
   const playbackState = resolvePlaybackState(paused, isBuffering, hasEnded);
+
+  const activeSubtitlePreset =
+    SUBTITLE_PRESETS.find(preset => preset.id === subtitlePresetId) ??
+    SUBTITLE_PRESETS[1];
+  const activeVideoUri = resolveSubtitlePresetUri(
+    activeSubtitlePreset,
+    sourceUri,
+  );
+  const videoSource = buildVideoSource(
+    activeVideoUri,
+    activeSubtitlePreset.textTracks,
+  );
+
+  const resetPlaybackForSourceChange = useCallback(() => {
+    setPaused(true);
+    setIsContentPlaying(false);
+    setHasEnded(false);
+    setIsBuffering(false);
+    setDuration(0);
+    setCurrentTime(0);
+    currentTimeRef.current = 0;
+    setSeekSliderValue(0);
+    setAvailableTextTracks([]);
+    setSelectedTextTrack({type: SelectedTrackType.DISABLED});
+  }, []);
+
+  const selectSubtitlePreset = useCallback(
+    (presetId: string) => {
+      setSubtitlePresetId(presetId);
+      resetPlaybackForSourceChange();
+    },
+    [resetPlaybackForSourceChange],
+  );
+
+  const selectTextTrack = useCallback((index: number | 'off') => {
+    if (index === 'off') {
+      setSelectedTextTrack({type: SelectedTrackType.DISABLED});
+      return;
+    }
+    setSelectedTextTrack({type: SelectedTrackType.INDEX, value: index});
+  }, []);
 
   useEffect(() => {
     playbackSnapshotRef.current = {paused, isContentPlaying, hasEnded};
@@ -168,6 +258,15 @@ export function SimpleVideoPlayer({
     setSeekSliderValue(data.currentTime);
     setHasEnded(false);
     setIsBuffering(false);
+    if (data.textTracks?.length) {
+      setAvailableTextTracks(data.textTracks);
+    }
+  }, []);
+
+  const handleTextTracks = useCallback((data: OnTextTracksData) => {
+    if (data.textTracks?.length) {
+      setAvailableTextTracks(data.textTracks);
+    }
   }, []);
 
   /**
@@ -335,12 +434,16 @@ export function SimpleVideoPlayer({
   const showReplay = hasEnded && !loopEnabled;
   const maxSeek = duration > 0 ? duration : 1;
 
+  const isTextTrackOff =
+    selectedTextTrack.type === SelectedTrackType.DISABLED;
+
   return (
     <View style={styles.container}>
       <View style={[styles.videoWrapper, videoLayoutStyle]}>
         <Video
+          key={`${subtitlePresetId}-${activeVideoUri}`}
           ref={videoRef}
-          source={buildVideoSource(sourceUri)}
+          source={videoSource}
           style={videoLayoutStyle}
           resizeMode="contain"
           paused={paused}
@@ -350,6 +453,12 @@ export function SimpleVideoPlayer({
           fullscreen={isFullscreen}
           repeat={loopEnabled}
           rate={playbackRate}
+          selectedTextTrack={selectedTextTrack}
+          subtitleStyle={{
+            fontSize: subtitleFontSize,
+            opacity: subtitleOpacity,
+            paddingBottom: 8,
+          }}
           controls={false}
           playInBackground={false}
           playWhenInactive={false}
@@ -359,6 +468,7 @@ export function SimpleVideoPlayer({
           onProgress={handleProgress}
           onBuffer={handleBuffer}
           onEnd={handleEnd}
+          onTextTracks={handleTextTracks}
           onFullscreenPlayerDidPresent={() => setIsFullscreen(true)}
           onFullscreenPlayerDidDismiss={() => setIsFullscreen(false)}
         />
@@ -372,6 +482,10 @@ export function SimpleVideoPlayer({
         )}
       </View>
 
+      <ScrollView
+        style={styles.controlsScroll}
+        contentContainerStyle={styles.controlsScrollContent}
+        showsVerticalScrollIndicator={false}>
       {/* Playback state label */}
       <Text style={styles.stateLabel}>State: {playbackState}</Text>
 
@@ -477,12 +591,102 @@ export function SimpleVideoPlayer({
         </View>
       </View>
 
+      {/* Subtitle stream presets (ExoList) */}
+      <View style={styles.sliderRow}>
+        <Text style={styles.sliderLabel}>Sub stream (TC-SUB)</Text>
+      </View>
+      <View style={styles.presetWrap}>
+        {SUBTITLE_PRESETS.map(preset => (
+          <Pressable
+            key={preset.id}
+            style={[
+              styles.presetButton,
+              subtitlePresetId === preset.id && styles.buttonActive,
+            ]}
+            onPress={() => selectSubtitlePreset(preset.id)}>
+            <Text style={styles.presetButtonText}>{preset.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {activeSubtitlePreset.platforms === 'android' && Platform.OS === 'ios' && (
+        <Text style={styles.hintText}>
+          This preset is Android-only in ExoList; iOS may show no subtitles.
+        </Text>
+      )}
+
+      {/* Subtitle track selection */}
+      <View style={styles.sliderRow}>
+        <Text style={styles.sliderLabel}>Subtitle track</Text>
+      </View>
+      <View style={styles.controlsRow}>
+        <Pressable
+          style={[styles.rateButton, isTextTrackOff && styles.buttonActive]}
+          onPress={() => selectTextTrack('off')}>
+          <Text style={styles.buttonText}>Off</Text>
+        </Pressable>
+        {availableTextTracks.map((track, index) => (
+          <Pressable
+            key={`${track.index ?? index}-${track.language ?? track.title}`}
+            style={[
+              styles.rateButton,
+              selectedTextTrack.type === SelectedTrackType.INDEX &&
+                selectedTextTrack.value === index &&
+                styles.buttonActive,
+            ]}
+            onPress={() => selectTextTrack(index)}>
+            <Text style={styles.presetButtonText} numberOfLines={1}>
+              {formatTextTrackLabel(track, index)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+      {availableTextTracks.length === 0 && (
+        <Text style={styles.hintText}>
+          Play video to load tracks, or pick WebVTT / VTT EN+JA preset.
+        </Text>
+      )}
+
+      {/* Subtitle style (TC-SUB-006) */}
+      <View style={styles.sliderRow}>
+        <Text style={styles.sliderLabel}>
+          Sub size: {Math.round(subtitleFontSize)}
+        </Text>
+        <Slider
+          style={styles.slider}
+          minimumValue={12}
+          maximumValue={36}
+          step={1}
+          value={subtitleFontSize}
+          minimumTrackTintColor="#a855f7"
+          maximumTrackTintColor="#cbd5e1"
+          thumbTintColor="#7c3aed"
+          onValueChange={setSubtitleFontSize}
+        />
+      </View>
+      <View style={styles.sliderRow}>
+        <Text style={styles.sliderLabel}>
+          Sub opacity: {subtitleOpacity.toFixed(2)}
+        </Text>
+        <Slider
+          style={styles.slider}
+          minimumValue={0.2}
+          maximumValue={1}
+          step={0.05}
+          value={subtitleOpacity}
+          minimumTrackTintColor="#a855f7"
+          maximumTrackTintColor="#cbd5e1"
+          thumbTintColor="#7c3aed"
+          onValueChange={setSubtitleOpacity}
+        />
+      </View>
+
       {/* Fullscreen toggle */}
       <Pressable style={styles.fullscreenButton} onPress={toggleFullscreen}>
         <Text style={styles.buttonText}>
           {isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
         </Text>
       </Pressable>
+      </ScrollView>
     </View>
   );
 }
@@ -492,6 +696,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0f172a',
     padding: 16,
+  },
+  controlsScroll: {
+    flex: 1,
+  },
+  controlsScrollContent: {
+    paddingBottom: 24,
   },
   videoWrapper: {
     alignSelf: 'center',
@@ -566,6 +776,29 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     fontSize: 13,
     fontVariant: ['tabular-nums'],
+  },
+  presetWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 4,
+  },
+  presetButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#1e293b',
+    borderRadius: 8,
+  },
+  presetButtonText: {
+    color: '#f8fafc',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  hintText: {
+    color: '#64748b',
+    fontSize: 12,
+    marginTop: 6,
+    fontStyle: 'italic',
   },
   buttonPrimary: {
     flex: 1,
