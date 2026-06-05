@@ -3,9 +3,11 @@
  * Uses functional components, hooks, and react-native-video v6 callbacks.
  */
 
-import React, {useCallback, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
+  AppState,
+  type AppStateStatus,
   Platform,
   Pressable,
   StyleSheet,
@@ -86,6 +88,13 @@ export function SimpleVideoPlayer({
   const videoLayoutStyle = {width: videoWidth, height: videoHeight};
 
   const videoRef = useRef<VideoRef>(null);
+  const currentTimeRef = useRef(0);
+  const wasPlayingBeforeBackgroundRef = useRef(false);
+  const playbackSnapshotRef = useRef({
+    paused: true,
+    isContentPlaying: false,
+    hasEnded: false,
+  });
 
   // Playback control
   const [paused, setPaused] = useState(true);
@@ -111,12 +120,51 @@ export function SimpleVideoPlayer({
 
   const playbackState = resolvePlaybackState(paused, isBuffering, hasEnded);
 
+  useEffect(() => {
+    playbackSnapshotRef.current = {paused, isContentPlaying, hasEnded};
+  }, [paused, isContentPlaying, hasEnded]);
+
+  /** Re-sync native playback after OS stops video in background. */
+  const resumePlaybackAfterForeground = useCallback(() => {
+    const resumeTime = currentTimeRef.current;
+    setHasEnded(false);
+    setIsContentPlaying(true);
+    setPaused(false);
+    videoRef.current?.seek(resumeTime);
+  }, []);
+
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      const snapshot = playbackSnapshotRef.current;
+
+      if (nextAppState === 'inactive' || nextAppState === 'background') {
+        wasPlayingBeforeBackgroundRef.current =
+          !snapshot.paused &&
+          snapshot.isContentPlaying &&
+          !snapshot.hasEnded;
+        return;
+      }
+
+      if (nextAppState === 'active' && wasPlayingBeforeBackgroundRef.current) {
+        wasPlayingBeforeBackgroundRef.current = false;
+        resumePlaybackAfterForeground();
+      }
+    };
+
+    const subscription = AppState.addEventListener(
+      'change',
+      handleAppStateChange,
+    );
+    return () => subscription.remove();
+  }, [resumePlaybackAfterForeground]);
+
   /**
    * onLoad — fired when the media is ready; provides duration and track metadata.
    */
   const handleLoad = useCallback((data: OnLoadData) => {
     setDuration(data.duration);
     setCurrentTime(data.currentTime);
+    currentTimeRef.current = data.currentTime;
     setSeekSliderValue(data.currentTime);
     setHasEnded(false);
     setIsBuffering(false);
@@ -131,6 +179,7 @@ export function SimpleVideoPlayer({
         return;
       }
       setCurrentTime(data.currentTime);
+      currentTimeRef.current = data.currentTime;
       setSeekSliderValue(data.currentTime);
     },
     [isSeeking],
@@ -154,6 +203,7 @@ export function SimpleVideoPlayer({
       setIsBuffering(false);
       setIsContentPlaying(true);
       setPaused(false);
+      currentTimeRef.current = 0;
       setCurrentTime(0);
       setSeekSliderValue(0);
       return;
@@ -162,6 +212,7 @@ export function SimpleVideoPlayer({
     setPaused(true);
     setIsBuffering(false);
     if (duration > 0) {
+      currentTimeRef.current = duration;
       setCurrentTime(duration);
       setSeekSliderValue(duration);
     }
@@ -185,6 +236,7 @@ export function SimpleVideoPlayer({
     setHasEnded(false);
     setIsContentPlaying(true);
     setPaused(false);
+    currentTimeRef.current = 0;
     setCurrentTime(0);
     setSeekSliderValue(0);
     videoRef.current?.seek(0);
@@ -196,6 +248,7 @@ export function SimpleVideoPlayer({
     setHasEnded(false);
     setSeekSliderValue(target);
     setCurrentTime(target);
+    currentTimeRef.current = target;
     videoRef.current?.seek(target);
   }, [currentTime, duration]);
 
@@ -205,6 +258,7 @@ export function SimpleVideoPlayer({
     setHasEnded(false);
     setSeekSliderValue(target);
     setCurrentTime(target);
+    currentTimeRef.current = target;
     videoRef.current?.seek(target);
   }, [currentTime]);
 
@@ -245,6 +299,7 @@ export function SimpleVideoPlayer({
     setHasEnded(false);
     setSeekSliderValue(value);
     setCurrentTime(value);
+    currentTimeRef.current = value;
     videoRef.current?.seek(value);
   }, []);
 
@@ -258,6 +313,7 @@ export function SimpleVideoPlayer({
           setHasEnded(false);
           setIsContentPlaying(true);
           setPaused(false);
+          currentTimeRef.current = 0;
           setCurrentTime(0);
           setSeekSliderValue(0);
           videoRef.current?.seek(0);
