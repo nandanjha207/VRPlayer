@@ -31,6 +31,7 @@ export const SAMPLE_MP4_URL =
 const SEEK_STEP_SECONDS = 10;
 const VIDEO_HORIZONTAL_PADDING = 32;
 const VIDEO_ASPECT_RATIO = 16 / 9;
+const PLAYBACK_RATES = [0.5, 1, 1.5, 2] as const;
 
 export type SimpleVideoPlayerProps = {
   /** Remote or local video URI. */
@@ -93,6 +94,9 @@ export function SimpleVideoPlayer({
   const [hasEnded, setHasEnded] = useState(false);
   const [isBuffering, setIsBuffering] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [loopEnabled, setLoopEnabled] = useState(false);
+  const [loopCount, setLoopCount] = useState(0);
+  const [playbackRate, setPlaybackRate] = useState(1);
 
   // Timeline
   const [duration, setDuration] = useState(0);
@@ -141,8 +145,19 @@ export function SimpleVideoPlayer({
 
   /**
    * onEnd — fired when playback reaches the end of the file.
+   * When loop is on, native repeat restarts playback; keep UI in Playing state.
    */
   const handleEnd = useCallback(() => {
+    if (loopEnabled) {
+      setLoopCount(prev => prev + 1);
+      setHasEnded(false);
+      setIsBuffering(false);
+      setIsContentPlaying(true);
+      setPaused(false);
+      setCurrentTime(0);
+      setSeekSliderValue(0);
+      return;
+    }
     setHasEnded(true);
     setPaused(true);
     setIsBuffering(false);
@@ -150,7 +165,7 @@ export function SimpleVideoPlayer({
       setCurrentTime(duration);
       setSeekSliderValue(duration);
     }
-  }, [duration]);
+  }, [duration, loopEnabled]);
 
   /** Play / Pause — toggles paused and isContentPlaying for the custom player fork. */
   const togglePlayPause = useCallback(() => {
@@ -233,6 +248,25 @@ export function SimpleVideoPlayer({
     videoRef.current?.seek(value);
   }, []);
 
+  /** Loop — toggles react-native-video repeat; resets loop counter when enabled. */
+  const toggleLoop = useCallback(() => {
+    setLoopEnabled(prev => {
+      const next = !prev;
+      if (next) {
+        setLoopCount(0);
+        if (hasEnded) {
+          setHasEnded(false);
+          setIsContentPlaying(true);
+          setPaused(false);
+          setCurrentTime(0);
+          setSeekSliderValue(0);
+          videoRef.current?.seek(0);
+        }
+      }
+      return next;
+    });
+  }, [hasEnded]);
+
   /** Fullscreen — native fullscreen via VideoRef (iOS & Android). */
   const toggleFullscreen = useCallback(() => {
     if (isFullscreen) {
@@ -242,7 +276,7 @@ export function SimpleVideoPlayer({
     }
   }, [isFullscreen]);
 
-  const showReplay = hasEnded;
+  const showReplay = hasEnded && !loopEnabled;
   const maxSeek = duration > 0 ? duration : 1;
 
   return (
@@ -258,6 +292,8 @@ export function SimpleVideoPlayer({
           muted={muted}
           volume={volume}
           fullscreen={isFullscreen}
+          repeat={loopEnabled}
+          rate={playbackRate}
           controls={false}
           playInBackground={false}
           playWhenInactive={false}
@@ -327,6 +363,38 @@ export function SimpleVideoPlayer({
         <Pressable style={styles.button} onPress={skipForward}>
           <Text style={styles.buttonText}>+10s</Text>
         </Pressable>
+      </View>
+
+      {/* Playback rate (TC-PB-012) */}
+      <View style={styles.sliderRow}>
+        <Text style={styles.sliderLabel}>Rate</Text>
+      </View>
+      <View style={styles.controlsRow}>
+        {PLAYBACK_RATES.map(rate => (
+          <Pressable
+            key={rate}
+            style={[
+              styles.rateButton,
+              playbackRate === rate && styles.buttonActive,
+            ]}
+            onPress={() => setPlaybackRate(rate)}>
+            <Text style={styles.buttonText}>{rate}x</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Loop toggle (TC-PB-013) */}
+      <View style={styles.controlsRow}>
+        <Pressable
+          style={[styles.button, loopEnabled && styles.buttonActive]}
+          onPress={toggleLoop}>
+          <Text style={styles.buttonText}>
+            Loop: {loopEnabled ? 'ON' : 'OFF'}
+          </Text>
+        </Pressable>
+        {loopEnabled && (
+          <Text style={styles.loopCountText}>Loops: {loopCount}</Text>
+        )}
       </View>
 
       {/* Mute and volume */}
@@ -425,6 +493,23 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     backgroundColor: '#1e293b',
     borderRadius: 8,
+  },
+  buttonActive: {
+    backgroundColor: '#14532d',
+    borderWidth: 1,
+    borderColor: '#22c55e',
+  },
+  rateButton: {
+    flex: 1,
+    paddingVertical: 10,
+    backgroundColor: '#1e293b',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  loopCountText: {
+    color: '#94a3b8',
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
   },
   buttonPrimary: {
     flex: 1,
