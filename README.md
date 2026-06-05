@@ -1,5 +1,17 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
+## Curated QA playlist
+
+The app uses a **short curated list** in `components/curatedPlaylist.ts` (not the full ExoList):
+
+- Clear **MP4** (Dizzy, Big Buck Bunny 10s), **HLS** live (Forstreet), **HLS** (BipBop + Tears), **DASH** (clear tears)
+- **Widevine** DASH on Android (standard + 20s license renewal)
+- **KeyOS FairPlay** HLS (Netflix Meridian) on iOS with your `customdata` token
+
+Edit that file to add URLs or swap in rows from `assets/media.exolist.json` later via `flattenExoList()`.
+
+The legacy harness **`SimpleVideoPlayer`** remains in `components/SimpleVideoPlayer.tsx` for focused control testing (not mounted in `App.tsx` by default).
+
 # Getting Started
 
 > **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.

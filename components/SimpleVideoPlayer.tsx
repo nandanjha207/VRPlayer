@@ -3,7 +3,7 @@
  * Uses functional components, hooks, and react-native-video v6 callbacks.
  */
 
-import React, {useCallback, useEffect, useRef, useState} from 'react';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   AppState,
@@ -17,7 +17,7 @@ import {
   View,
 } from 'react-native';
 import Slider from '@react-native-community/slider';
-import Video, {
+import {
   SelectedTrackType,
   type OnBufferData,
   type OnLoadData,
@@ -28,6 +28,7 @@ import Video, {
   type TextTracks,
   type VideoRef,
 } from 'react-native-video';
+import {VideoPlayer} from './videoFork';
 import {
   SUBTITLE_PRESETS,
   resolveSubtitlePresetUri,
@@ -150,11 +151,20 @@ export function SimpleVideoPlayer({
   const [availableTextTracks, setAvailableTextTracks] = useState<
     OnLoadData['textTracks']
   >([]);
-  const [selectedTextTrack, setSelectedTextTrack] = useState<SelectedTextTrack>(
+  const [selectedTextTrack, setSelectedTextTrack] = useState<SelectedTrack>(
     {type: SelectedTrackType.DISABLED},
   );
   const [subtitleFontSize, setSubtitleFontSize] = useState(18);
   const [subtitleOpacity, setSubtitleOpacity] = useState(1);
+
+  const subtitleVideoStyle = useMemo(
+    () => ({
+      fontSize: subtitleFontSize,
+      opacity: subtitleOpacity,
+      paddingBottom: 8,
+    }),
+    [subtitleFontSize, subtitleOpacity],
+  );
 
   // Timeline
   const [duration, setDuration] = useState(0);
@@ -265,7 +275,7 @@ export function SimpleVideoPlayer({
 
   const handleTextTracks = useCallback((data: OnTextTracksData) => {
     if (data.textTracks?.length) {
-      setAvailableTextTracks(data.textTracks);
+      setAvailableTextTracks(data.textTracks as OnLoadData['textTracks']);
     }
   }, []);
 
@@ -440,7 +450,7 @@ export function SimpleVideoPlayer({
   return (
     <View style={styles.container}>
       <View style={[styles.videoWrapper, videoLayoutStyle]}>
-        <Video
+        <VideoPlayer
           key={`${subtitlePresetId}-${activeVideoUri}`}
           ref={videoRef}
           source={videoSource}
@@ -454,11 +464,7 @@ export function SimpleVideoPlayer({
           repeat={loopEnabled}
           rate={playbackRate}
           selectedTextTrack={selectedTextTrack}
-          subtitleStyle={{
-            fontSize: subtitleFontSize,
-            opacity: subtitleOpacity,
-            paddingBottom: 8,
-          }}
+          subtitleStyle={subtitleVideoStyle}
           controls={false}
           playInBackground={false}
           playWhenInactive={false}
