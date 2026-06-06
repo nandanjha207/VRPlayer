@@ -234,6 +234,12 @@ export function MediaCatalogPlayer() {
   const videoRef = useRef<VideoRef>(null);
   const currentTimeRef = useRef(0);
   const durationRef = useRef(0);
+  /** Blocks onProgress from overwriting the slider until seek settles. */
+  const isSeekingRef = useRef(false);
+  const seekTargetRef = useRef<number | null>(null);
+  const seekReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const wasPlayingBeforeBackgroundRef = useRef(false);
   const playbackSnapshotRef = useRef({
     paused: true,
@@ -285,7 +291,6 @@ export function MediaCatalogPlayer() {
   );
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
-  const [isSeeking, setIsSeeking] = useState(false);
   const [seekSliderValue, setSeekSliderValue] = useState(0);
 
   const [volume, setVolume] = useState(1);
@@ -318,7 +323,17 @@ export function MediaCatalogPlayer() {
     );
   }, [selectedItem, activeVideoUri, activeSubtitlePreset.textTracks]);
 
+  const releaseSeekLock = useCallback(() => {
+    if (seekReleaseTimerRef.current) {
+      clearTimeout(seekReleaseTimerRef.current);
+      seekReleaseTimerRef.current = null;
+    }
+    isSeekingRef.current = false;
+    seekTargetRef.current = null;
+  }, []);
+
   const resetPlaybackForStreamChange = useCallback(() => {
+    releaseSeekLock();
     setPaused(true);
     setIsContentPlaying(false);
     setHasEnded(false);
@@ -334,7 +349,7 @@ export function MediaCatalogPlayer() {
     setSelectedAudioTrack({type: SelectedTrackType.SYSTEM});
     setSelectedVideoTrack({type: SelectedVideoTrackType.AUTO});
     setLastError(null);
-  }, []);
+  }, [releaseSeekLock]);
 
   const scheduleHideOverlay = useCallback(() => {
     if (hideOverlayTimerRef.current) {
@@ -423,14 +438,22 @@ export function MediaCatalogPlayer() {
 
   const handleProgress = useCallback(
     (data: OnProgressData) => {
-      if (isSeeking) {
-        return;
+      if (isSeekingRef.current) {
+        const target = seekTargetRef.current;
+        if (
+          target !== null &&
+          Math.abs(data.currentTime - target) < 1.5
+        ) {
+          releaseSeekLock();
+        } else {
+          return;
+        }
       }
       setCurrentTime(data.currentTime);
       currentTimeRef.current = data.currentTime;
       setSeekSliderValue(data.currentTime);
     },
-    [isSeeking],
+    [releaseSeekLock],
   );
 
   const handleBuffer = useCallback((data: OnBufferData) => {
@@ -480,44 +503,51 @@ export function MediaCatalogPlayer() {
     showOverlay();
   }, [hasEnded, paused, selectedItem?.playable, showOverlay]);
 
+  const commitSeek = useCallback(
+    (target: number) => {
+      setHasEnded(false);
+      setSeekSliderValue(target);
+      setCurrentTime(target);
+      currentTimeRef.current = target;
+      isSeekingRef.current = true;
+      seekTargetRef.current = target;
+      if (seekReleaseTimerRef.current) {
+        clearTimeout(seekReleaseTimerRef.current);
+      }
+      seekReleaseTimerRef.current = setTimeout(() => {
+        releaseSeekLock();
+      }, 2500);
+      videoRef.current?.seek(target);
+    },
+    [releaseSeekLock],
+  );
+
   const handleReplay = useCallback(() => {
-    setHasEnded(false);
     setIsContentPlaying(true);
     setPaused(false);
-    currentTimeRef.current = 0;
-    setCurrentTime(0);
-    setSeekSliderValue(0);
-    videoRef.current?.seek(0);
+    commitSeek(0);
     showOverlay();
-  }, [showOverlay]);
+  }, [commitSeek, showOverlay]);
 
   const skipForward = useCallback(() => {
     const d = durationRef.current;
     if (!d) {
       return;
     }
-    const target = Math.min(currentTime + SEEK_STEP_SECONDS, d);
-    setHasEnded(false);
-    setSeekSliderValue(target);
-    setCurrentTime(target);
-    currentTimeRef.current = target;
-    videoRef.current?.seek(target);
+    const target = Math.min(currentTimeRef.current + SEEK_STEP_SECONDS, d);
+    commitSeek(target);
     setSkipHint('fwd');
     setTimeout(() => setSkipHint(null), 600);
     showOverlay();
-  }, [currentTime, showOverlay]);
+  }, [commitSeek, showOverlay]);
 
   const skipBackward = useCallback(() => {
-    const target = Math.max(currentTime - SEEK_STEP_SECONDS, 0);
-    setHasEnded(false);
-    setSeekSliderValue(target);
-    setCurrentTime(target);
-    currentTimeRef.current = target;
-    videoRef.current?.seek(target);
+    const target = Math.max(currentTimeRef.current - SEEK_STEP_SECONDS, 0);
+    commitSeek(target);
     setSkipHint('back');
     setTimeout(() => setSkipHint(null), 600);
     showOverlay();
-  }, [currentTime, showOverlay]);
+  }, [commitSeek, showOverlay]);
 
   const toggleMute = useCallback(() => {
     setMuted(prev => {
@@ -545,24 +575,21 @@ export function MediaCatalogPlayer() {
   );
 
   const handleSeekStart = useCallback(() => {
-    setIsSeeking(true);
+    isSeekingRef.current = true;
+    seekTargetRef.current = null;
   }, []);
 
   const handleSeekChange = useCallback((value: number) => {
     setSeekSliderValue(value);
+    setCurrentTime(value);
   }, []);
 
   const handleSeekComplete = useCallback(
     (value: number) => {
-      setIsSeeking(false);
-      setHasEnded(false);
-      setSeekSliderValue(value);
-      setCurrentTime(value);
-      currentTimeRef.current = value;
-      videoRef.current?.seek(value);
+      commitSeek(value);
       showOverlay();
     },
-    [showOverlay],
+    [commitSeek, showOverlay],
   );
 
   const toggleLoop = useCallback(() => {
