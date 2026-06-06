@@ -44,6 +44,8 @@ export type CatalogStreamItem = {
   fairPlayContentId?: string;
   /** Optional poster / thumbnail for playlist row. */
   thumbnailUri?: string;
+  /** HTTP headers for manifest + media requests (e.g. CDN User-Agent allowlist). */
+  headers?: Record<string, string>;
   tags: StreamTag[];
   /** False for ssai://, unknown schemes, or PlayReady on iOS. */
   playable: boolean;

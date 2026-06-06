@@ -151,6 +151,7 @@ function buildCatalogSource(
     ...(type ? {type} : {}),
     ...(drm ? {drm} : {}),
     ...(ad ? {ad} : {}),
+    ...(item.headers ? {headers: item.headers} : {}),
     ...(sidecarTextTracks?.length ? {textTracks: sidecarTextTracks} : {}),
   };
 }

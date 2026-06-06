@@ -6,6 +6,7 @@ The app uses a **short curated list** in `components/curatedPlaylist.ts` (not th
 
 - Clear **MP4** (Dizzy, Big Buck Bunny 10s), **HLS** live (Forstreet), **HLS** (BipBop + Tears), **DASH** (clear tears)
 - **Widevine** DASH on Android (standard + 20s license renewal)
+- **Shaka FairPlay** HLS (Angel One) on iOS — public cert + license demo
 - **KeyOS FairPlay** HLS (Netflix Meridian) on iOS with your `customdata` token
 
 Edit that file to add URLs or swap in rows from `assets/media.exolist.json` later via `flattenExoList()`.

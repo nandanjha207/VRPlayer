@@ -28,16 +28,25 @@ const HLS_UNIFIED =
   'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8';
 const HLS_BIPBOP =
   'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8';
-const MP4_DIZZY = 'https://html5demos.com/assets/dizzy.mp4';
+
 const MP4_BIG_BUCK_BUNNY =
   'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4';
 const HLS_LIVE_FORSTREET = 'https://live.forstreet.cl/live/livestream.m3u8';
+/** Forstreet CDN returns 400 for ExoPlayer / AVPlayer UAs — browser UA required. */
+const BROWSER_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
-/** Playlist row posters (HTTPS, hotlink-friendly where possible). */
+/** Shaka Player public FairPlay demo (no customdata — native FPS license flow). */
+const SHAKA_ANGEL_ONE_HLS =
+  'https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8';
+const SHAKA_FP_CERT = 'https://cwip-shaka-proxy.appspot.com/fps_certificate';
+const SHAKA_FP_LICENSE = 'https://cwip-shaka-proxy.appspot.com/no_auth';
+
+/** Playlist row posters (direct image URLs — avoid Wikimedia /thumb/ size limits). */
 const THUMB_BIG_BUCK_BUNNY =
-  'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Big_buck_bunny_poster_big.jpg/320px-Big_buck_bunny_poster_big.jpg';
+  'https://peach.blender.org/wp-content/uploads/title_anouncement.jpg';
 const THUMB_TEARS =
-  'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Tears_of_Steel_poster.jpg/320px-Tears_of_Steel_poster.jpg';
+  'https://mango.blender.org/wp-content/uploads/2013/05/tears_of_steel_poster_02.jpg';
 const THUMB_BIPBOP =
   'https://devstreaming-cdn.apple.com/videos/streaming/examples/images/48x48/icon_48x48.png';
 
@@ -56,13 +65,6 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
   const rows: Omit<CatalogStreamItem, 'id'>[] = [
     {
       category: 'Quick test',
-      title: 'MP4 – Dizzy (~5s, clear)',
-      uri: MP4_DIZZY,
-      tags: ['clear'],
-      playable: true,
-    },
-    {
-      category: 'Quick test',
       title: 'MP4 – Big Buck Bunny 1080p (10s clip)',
       uri: MP4_BIG_BUCK_BUNNY,
       thumbnailUri: THUMB_BIG_BUCK_BUNNY,
@@ -73,8 +75,11 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
       category: 'HLS (live)',
       title: 'HLS – Forstreet live',
       uri: HLS_LIVE_FORSTREET,
+      headers: {'User-Agent': BROWSER_USER_AGENT},
       tags: ['clear', 'live'],
       playable: true,
+      unsupportedHint:
+        'CDN blocks native player User-Agent; app sends a browser UA via headers.',
     },
     {
       category: 'HLS (clear)',
@@ -133,23 +138,40 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
           : 'Play 60s+ to verify license renewal.',
     },
     {
-      category: 'DRM – FairPlay (KeyOS)',
-      title: 'HLS – Netflix Meridian (KeyOS FPS)',
-      uri: KEYOS_MERIDIAN_HLS,
+      category: 'DRM – FairPlay (iOS test)',
+      title: 'HLS – Shaka Angel One (FPS demo)',
+      uri: SHAKA_ANGEL_ONE_HLS,
       thumbnailUri: THUMB_TEARS,
       drmScheme: 'fairplay',
-      drmLicenseUri: KEYOS_FP_LICENSE,
-      fairPlayCertificateUrl: KEYOS_FP_CERT,
-      fairPlayCustomData: KEYOS_MERIDIAN_CUSTOM_DATA,
-      fairPlayContentId: '71b3f031667e417e9d924535c67ce02b',
+      drmLicenseUri: SHAKA_FP_LICENSE,
+      fairPlayCertificateUrl: SHAKA_FP_CERT,
       tags: ['drm'],
       playable: Platform.OS === 'ios',
       unsupportedHint:
         Platform.OS === 'android'
           ? 'FairPlay — iOS physical device only (not simulator).'
-          : 'Real iPhone required. Confirm cert/license URLs with your KeyOS team if this fails.',
+          : 'Shaka demo cert + license. Use real iPhone; try this before KeyOS.',
     },
+    
   ];
+
+  // {
+  //   category: 'DRM – FairPlay (KeyOS)',
+  //   title: 'HLS – Netflix Meridian (KeyOS FPS)',
+  //   uri: KEYOS_MERIDIAN_HLS,
+  //   thumbnailUri: THUMB_TEARS,
+  //   drmScheme: 'fairplay',
+  //   drmLicenseUri: KEYOS_FP_LICENSE,
+  //   fairPlayCertificateUrl: KEYOS_FP_CERT,
+  //   fairPlayCustomData: KEYOS_MERIDIAN_CUSTOM_DATA,
+  //   fairPlayContentId: '71b3f031667e417e9d924535c67ce02b',
+  //   tags: ['drm'],
+  //   playable: Platform.OS === 'ios',
+  //   unsupportedHint:
+  //     Platform.OS === 'android'
+  //       ? 'FairPlay — iOS physical device only (not simulator).'
+  //       : 'Real iPhone required. Confirm cert/license URLs with your KeyOS team if this fails.',
+  // }
 
   return rows.map((row, index) => item(row, index));
 }
