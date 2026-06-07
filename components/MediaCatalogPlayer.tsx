@@ -21,17 +21,14 @@ import Slider from '@react-native-community/slider';
 import {
   DRMType,
   SelectedTrackType,
-  SelectedVideoTrackType,
   type Drm,
   type OnBufferData,
   type OnLoadData,
   type OnProgressData,
   type OnTextTracksData,
   type OnVideoErrorData,
-  type OnVideoTracksData,
   type ReactVideoSource,
   type SelectedTrack,
-  type SelectedVideoTrack,
   type TextTracks,
   type VideoRef,
 } from 'react-native-video';
@@ -240,6 +237,7 @@ export function MediaCatalogPlayer() {
   const seekReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const resumeSeekAfterQualityRef = useRef<number | null>(null);
   const wasPlayingBeforeBackgroundRef = useRef(false);
   const playbackSnapshotRef = useRef({
     paused: true,
@@ -267,17 +265,14 @@ export function MediaCatalogPlayer() {
   const [availableAudioTracks, setAvailableAudioTracks] = useState<
     OnLoadData['audioTracks']
   >([]);
-  const [videoTracks, setVideoTracks] = useState<
-    OnLoadData['videoTracks']
-  >([]);
   const [selectedTextTrack, setSelectedTextTrack] = useState<SelectedTrack>(
     {type: SelectedTrackType.DISABLED},
   );
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<SelectedTrack>({
     type: SelectedTrackType.SYSTEM,
   });
-  const [selectedVideoTrack, setSelectedVideoTrack] =
-    useState<SelectedVideoTrack>({type: SelectedVideoTrackType.AUTO});
+  /** null = Auto (master / default URI); otherwise QualityVariant.id */
+  const [qualityVariantId, setQualityVariantId] = useState<string | null>(null);
   const [subtitleFontSize, setSubtitleFontSize] = useState(16);
   const [subtitleOpacity, setSubtitleOpacity] = useState(1);
 
@@ -309,19 +304,34 @@ export function MediaCatalogPlayer() {
   const activeSubtitlePreset =
     SUBTITLE_PRESETS.find(p => p.id === subtitlePresetId) ??
     SUBTITLE_PRESETS[0];
-  const activeVideoUri = selectedItem
-    ? resolveSubtitlePresetUri(activeSubtitlePreset, selectedItem.uri)
-    : '';
+  const playbackUri = useMemo(() => {
+    if (!selectedItem) {
+      return '';
+    }
+    if (qualityVariantId && selectedItem.qualityVariants?.length) {
+      const variant = selectedItem.qualityVariants.find(
+        v => v.id === qualityVariantId,
+      );
+      if (variant) {
+        return variant.uri;
+      }
+    }
+    return resolveSubtitlePresetUri(activeSubtitlePreset, selectedItem.uri);
+  }, [
+    selectedItem,
+    qualityVariantId,
+    activeSubtitlePreset,
+  ]);
   const videoSource = useMemo(() => {
-    if (!selectedItem?.playable) {
+    if (!selectedItem?.playable || !playbackUri) {
       return undefined;
     }
     return buildCatalogSource(
       selectedItem,
-      activeVideoUri,
+      playbackUri,
       activeSubtitlePreset.textTracks,
     );
-  }, [selectedItem, activeVideoUri, activeSubtitlePreset.textTracks]);
+  }, [selectedItem, playbackUri, activeSubtitlePreset.textTracks]);
 
   const releaseSeekLock = useCallback(() => {
     if (seekReleaseTimerRef.current) {
@@ -344,10 +354,10 @@ export function MediaCatalogPlayer() {
     setSeekSliderValue(0);
     setAvailableTextTracks([]);
     setAvailableAudioTracks([]);
-    setVideoTracks([]);
+    setQualityVariantId(null);
+    resumeSeekAfterQualityRef.current = null;
     setSelectedTextTrack({type: SelectedTrackType.DISABLED});
     setSelectedAudioTrack({type: SelectedTrackType.SYSTEM});
-    setSelectedVideoTrack({type: SelectedVideoTrackType.AUTO});
     setLastError(null);
   }, [releaseSeekLock]);
 
@@ -419,20 +429,21 @@ export function MediaCatalogPlayer() {
     if (data.audioTracks?.length) {
       setAvailableAudioTracks(data.audioTracks);
     }
-    if (data.videoTracks?.length) {
-      setVideoTracks(data.videoTracks);
+    const resumeAt = resumeSeekAfterQualityRef.current;
+    if (resumeAt !== null && resumeAt > 0) {
+      resumeSeekAfterQualityRef.current = null;
+      setTimeout(() => {
+        videoRef.current?.seek(resumeAt);
+        currentTimeRef.current = resumeAt;
+        setCurrentTime(resumeAt);
+        setSeekSliderValue(resumeAt);
+      }, 0);
     }
   }, []);
 
   const handleTextTracks = useCallback((data: OnTextTracksData) => {
     if (data.textTracks?.length) {
       setAvailableTextTracks(data.textTracks as OnLoadData['textTracks']);
-    }
-  }, []);
-
-  const handleVideoTracks = useCallback((data: OnVideoTracksData) => {
-    if (data.videoTracks?.length) {
-      setVideoTracks(data.videoTracks);
     }
   }, []);
 
@@ -631,20 +642,13 @@ export function MediaCatalogPlayer() {
     setSelectedAudioTrack({type: SelectedTrackType.INDEX, value: index});
   }, []);
 
-  const selectVideoQuality = useCallback(
-    (choice: 'auto' | number) => {
-      if (choice === 'auto') {
-        setSelectedVideoTrack({type: SelectedVideoTrackType.AUTO});
-      } else {
-        setSelectedVideoTrack({
-          type: SelectedVideoTrackType.INDEX,
-          value: choice,
-        });
-      }
-      setModal('none');
-    },
-    [],
-  );
+  const qualityVariants = selectedItem?.qualityVariants ?? [];
+
+  const selectQualityVariant = useCallback((variantId: 'auto' | string) => {
+    resumeSeekAfterQualityRef.current = currentTimeRef.current;
+    setQualityVariantId(variantId === 'auto' ? null : variantId);
+    setModal('none');
+  }, []);
 
   const maxSeek = duration > 0 ? duration : 1;
   const showReplay = hasEnded && !loopEnabled;
@@ -695,7 +699,7 @@ export function MediaCatalogPlayer() {
   );
 
   const videoKey = selectedItem
-    ? `${selectedId}-${subtitlePresetId}-${activeVideoUri}-${
+    ? `${selectedId}-${subtitlePresetId}-${playbackUri}-${
         selectedItem.drmLicenseUri ?? 'clear'
       }`
     : 'empty';
@@ -715,38 +719,38 @@ export function MediaCatalogPlayer() {
           }
         }}>
         {selectedItem?.playable && videoSource ? (
-          <VideoPlayer
-            key={videoKey}
-            ref={videoRef}
-            source={videoSource}
-            style={StyleSheet.absoluteFill}
-            resizeMode="contain"
-            paused={paused}
-            isContentPlaying={isContentPlaying}
-            muted={muted}
-            volume={volume}
-            fullscreen={isFullscreen}
-            repeat={loopEnabled}
-            rate={playbackRate}
-            selectedTextTrack={selectedTextTrack}
-            selectedAudioTrack={selectedAudioTrack}
-            selectedVideoTrack={selectedVideoTrack}
-            subtitleStyle={subtitleVideoStyle}
-            controls={false}
-            playInBackground={false}
-            playWhenInactive={false}
-            useTextureView={Platform.OS === 'android'}
-            progressUpdateInterval={250}
-            onLoad={handleLoad}
-            onProgress={handleProgress}
-            onBuffer={handleBuffer}
-            onEnd={handleEnd}
-            onError={handleError}
-            onTextTracks={handleTextTracks}
-            onVideoTracks={handleVideoTracks}
-            onFullscreenPlayerDidPresent={() => setIsFullscreen(true)}
-            onFullscreenPlayerDidDismiss={() => setIsFullscreen(false)}
-          />
+          <View style={styles.videoClip}>
+            <VideoPlayer
+              key={videoKey}
+              ref={videoRef}
+              source={videoSource}
+              style={StyleSheet.absoluteFill}
+              resizeMode="contain"
+              paused={paused}
+              isContentPlaying={isContentPlaying}
+              muted={muted}
+              volume={volume}
+              fullscreen={isFullscreen}
+              repeat={loopEnabled}
+              rate={playbackRate}
+              selectedTextTrack={selectedTextTrack}
+              selectedAudioTrack={selectedAudioTrack}
+              subtitleStyle={subtitleVideoStyle}
+              controls={false}
+              playInBackground={false}
+              playWhenInactive={false}
+              useTextureView={false}
+              progressUpdateInterval={250}
+              onLoad={handleLoad}
+              onProgress={handleProgress}
+              onBuffer={handleBuffer}
+              onEnd={handleEnd}
+              onError={handleError}
+              onTextTracks={handleTextTracks}
+              onFullscreenPlayerDidPresent={() => setIsFullscreen(true)}
+              onFullscreenPlayerDidDismiss={() => setIsFullscreen(false)}
+            />
+          </View>
         ) : (
           <View style={[styles.placeholder, StyleSheet.absoluteFill]}>
             <Text style={styles.placeholderTitle}>No preview</Text>
@@ -1018,37 +1022,38 @@ export function MediaCatalogPlayer() {
         <Pressable style={styles.modalBackdrop} onPress={() => setModal('none')}>
           <Pressable style={styles.modalSheetSm} onPress={e => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Quality</Text>
-            <Pressable
-              style={styles.qualityRow}
-              onPress={() => selectVideoQuality('auto')}>
-              <Text style={styles.qualityText}>
-                Auto
-                {selectedVideoTrack.type === SelectedVideoTrackType.AUTO
-                  ? ' ✓'
-                  : ''}
-              </Text>
-            </Pressable>
-            {videoTracks.map((t, idx) => (
-              <Pressable
-                key={`${t.index}-${idx}`}
-                style={styles.qualityRow}
-                onPress={() => selectVideoQuality(t.index)}>
-                <Text style={styles.qualityText}>
-                  {t.height ? `${t.height}p` : `Track ${t.index}`}
-                  {t.bitrate ? ` · ${Math.round(t.bitrate / 1000)} kbps` : ''}
-                  {selectedVideoTrack.type === SelectedVideoTrackType.INDEX &&
-                  selectedVideoTrack.value === t.index
-                    ? ' ✓'
-                    : ''}
+            {qualityVariants.length > 0 ? (
+              <>
+                <Pressable
+                  style={styles.qualityRow}
+                  onPress={() => selectQualityVariant('auto')}>
+                  <Text style={styles.qualityText}>
+                    Auto (ABR master)
+                    {qualityVariantId === null ? ' ✓' : ''}
+                  </Text>
+                </Pressable>
+                {qualityVariants.map(variant => (
+                  <Pressable
+                    key={variant.id}
+                    style={styles.qualityRow}
+                    onPress={() => selectQualityVariant(variant.id)}>
+                    <Text style={styles.qualityText}>
+                      {variant.label}
+                      {qualityVariantId === variant.id ? ' ✓' : ''}
+                    </Text>
+                  </Pressable>
+                ))}
+                <Text style={styles.modalHint}>
+                  Switches to a fixed HLS playlist URL (fits player frame on
+                  Android and iOS).
                 </Text>
-              </Pressable>
-            ))}
-            {videoTracks.length === 0 ? (
+              </>
+            ) : (
               <Text style={styles.modalHint}>
-                Quality tracks appear after playback starts (when manifest exposes
-                variants).
+                No fixed quality URLs for this stream. Use Auto playback, or add
+                qualityVariants in curatedPlaylist.ts.
               </Text>
-            ) : null}
+            )}
           </Pressable>
         </Pressable>
       </Modal>
@@ -1128,6 +1133,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: 'hidden',
     backgroundColor: '#000',
+  },
+  videoClip: {
+    ...StyleSheet.absoluteFill,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   placeholder: {
     alignItems: 'center',

@@ -4,7 +4,7 @@
  */
 
 import {Platform} from 'react-native';
-import type {CatalogStreamItem} from './exoListParser';
+import type {CatalogStreamItem, QualityVariant} from './exoListParser';
 
 /** KeyOS demo token (FairPlay) — rotate via your KeyOS portal when expired. */
 export const KEYOS_MERIDIAN_CUSTOM_DATA =
@@ -28,6 +28,37 @@ const HLS_UNIFIED =
   'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8';
 const HLS_BIPBOP =
   'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8';
+const BIPBOP_16X9_BASE =
+  'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/';
+
+/** Fixed gear playlists — avoids Android selectedVideoTrack layout bugs. */
+const BIPBOP_QUALITY_VARIANTS: QualityVariant[] = [
+  {
+    id: '234',
+    label: '234p',
+    uri: `${BIPBOP_16X9_BASE}gear1/prog_index.m3u8`,
+  },
+  {
+    id: '360',
+    label: '360p',
+    uri: `${BIPBOP_16X9_BASE}gear2/prog_index.m3u8`,
+  },
+  {
+    id: '540',
+    label: '540p',
+    uri: `${BIPBOP_16X9_BASE}gear3/prog_index.m3u8`,
+  },
+  {
+    id: '720',
+    label: '720p',
+    uri: `${BIPBOP_16X9_BASE}gear4/prog_index.m3u8`,
+  },
+  {
+    id: '1080',
+    label: '1080p',
+    uri: `${BIPBOP_16X9_BASE}gear5/prog_index.m3u8`,
+  },
+];
 
 const MP4_BIG_BUCK_BUNNY =
   'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4';
@@ -86,6 +117,7 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
       title: 'HLS – Apple BipBop 16:9 (ABR)',
       uri: HLS_BIPBOP,
       thumbnailUri: THUMB_BIPBOP,
+      qualityVariants: BIPBOP_QUALITY_VARIANTS,
       tags: ['clear'],
       playable: true,
     },
