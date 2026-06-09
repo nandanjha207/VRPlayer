@@ -22,8 +22,33 @@ const WV_LICENSE_DEFAULT =
 const WV_LICENSE_RENEW =
   'https://proxy.uat.widevine.com/proxy?video_id=GTS_CAN_RENEW&provider=widevine_test';
 
-const CLEAR_DASH =
-  'https://storage.googleapis.com/wvmedia/clear/h264/tears/tears.mpd';
+const TEARS_CLEAR_BASE =
+  'https://storage.googleapis.com/wvmedia/clear/h264/tears/';
+const CLEAR_DASH = `${TEARS_CLEAR_BASE}tears.mpd`;
+
+/** Same renditions as in tears.mpd (single-file MP4 per Representation). */
+const TEARS_CLEAR_QUALITY_VARIANTS: QualityVariant[] = [
+  {
+    id: 'tears-240',
+    label: '240p',
+    uri: `${TEARS_CLEAR_BASE}tears_h264_baseline_240p_800.mp4`,
+  },
+  {
+    id: 'tears-480',
+    label: '480p',
+    uri: `${TEARS_CLEAR_BASE}tears_h264_main_480p_2000.mp4`,
+  },
+  {
+    id: 'tears-720',
+    label: '720p',
+    uri: `${TEARS_CLEAR_BASE}tears_h264_main_720p_8000.mp4`,
+  },
+  {
+    id: 'tears-1080',
+    label: '1080p',
+    uri: `${TEARS_CLEAR_BASE}tears_h264_high_1080p_20000.mp4`,
+  },
+];
 const HLS_UNIFIED =
   'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8';
 const HLS_BIPBOP =
@@ -62,6 +87,9 @@ const BIPBOP_QUALITY_VARIANTS: QualityVariant[] = [
 
 const MP4_BIG_BUCK_BUNNY =
   'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4';
+
+const MP4_ONE_HR =
+  'https://storage.googleapis.com/exoplayer-test-media-1/mp4/frame-counter-one-hour.mp4';
 const HLS_LIVE_FORSTREET = 'https://live.forstreet.cl/live/livestream.m3u8';
 /** Forstreet CDN returns 400 for ExoPlayer / AVPlayer UAs — browser UA required. */
 const BROWSER_USER_AGENT =
@@ -103,6 +131,14 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
       playable: true,
     },
     {
+      category: 'Test',
+      title: 'MP4  One hr clip',
+      uri: MP4_ONE_HR,
+      thumbnailUri: THUMB_BIG_BUCK_BUNNY,
+      tags: ['clear'],
+      playable: true,
+    },
+    {
       category: 'HLS (live)',
       title: 'HLS – Forstreet live',
       uri: HLS_LIVE_FORSTREET,
@@ -131,9 +167,10 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
     },
     {
       category: 'DASH (clear)',
-      title: 'DASH – Tears clear (wvmedia)',
+      title: 'DASH – Tears clear (wvmedia multi quality)',
       uri: CLEAR_DASH,
       thumbnailUri: THUMB_TEARS,
+      qualityVariants: TEARS_CLEAR_QUALITY_VARIANTS,
       tags: ['clear'],
       playable: true,
       unsupportedHint:

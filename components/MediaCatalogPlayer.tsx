@@ -1044,8 +1044,8 @@ export function MediaCatalogPlayer() {
                   </Pressable>
                 ))}
                 <Text style={styles.modalHint}>
-                  Switches to a fixed HLS playlist URL (fits player frame on
-                  Android and iOS).
+                  Switches to a fixed-rendition URL from the catalog (HLS, DASH
+                  master, or progressive MP4).
                 </Text>
               </>
             ) : (
