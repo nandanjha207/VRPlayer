@@ -27,13 +27,6 @@ export type ExoListCategory = {
 
 export type StreamTag = 'clear' | 'drm' | 'live' | 'ads' | 'dai';
 
-/** Fixed HLS/DASH rendition — quality change swaps playback URI (no native track override). */
-export type QualityVariant = {
-  id: string;
-  label: string;
-  uri: string;
-};
-
 export type CatalogStreamItem = {
   id: string;
   category: string;
@@ -53,8 +46,6 @@ export type CatalogStreamItem = {
   thumbnailUri?: string;
   /** HTTP headers for manifest + media requests (e.g. CDN User-Agent allowlist). */
   headers?: Record<string, string>;
-  /** Manual quality rows — each option is a separate fixed-rendition URL. */
-  qualityVariants?: QualityVariant[];
   tags: StreamTag[];
   /** False for ssai://, unknown schemes, or PlayReady on iOS. */
   playable: boolean;

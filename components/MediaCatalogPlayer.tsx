@@ -34,6 +34,11 @@ import {
 } from 'react-native-video';
 import {CURATED_PLAYLIST} from './curatedPlaylist';
 import {type CatalogStreamItem} from './exoListParser';
+import {
+  inferManifestKind,
+  loadManifestVideoRenditions,
+  type ManifestVideoRendition,
+} from './manifestQualities';
 import {PlaylistThumbnail} from './PlaylistThumbnail';
 import {
   SUBTITLE_PRESETS,
@@ -271,8 +276,14 @@ export function MediaCatalogPlayer() {
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<SelectedTrack>({
     type: SelectedTrackType.SYSTEM,
   });
-  /** null = Auto (master / default URI); otherwise QualityVariant.id */
-  const [qualityVariantId, setQualityVariantId] = useState<string | null>(null);
+  /** Video renditions parsed from HLS/DASH manifest; empty if N/A or loading. */
+  const [manifestRenditions, setManifestRenditions] = useState<
+    ManifestVideoRendition[]
+  >([]);
+  /** null = Auto (adaptive master); otherwise ManifestVideoRendition.id */
+  const [selectedQualityRenditionId, setSelectedQualityRenditionId] = useState<
+    string | null
+  >(null);
   const [subtitleFontSize, setSubtitleFontSize] = useState(16);
   const [subtitleOpacity, setSubtitleOpacity] = useState(1);
 
@@ -301,6 +312,45 @@ export function MediaCatalogPlayer() {
     durationRef.current = duration;
   }, [duration]);
 
+  useEffect(() => {
+    const row = catalogItems.find(i => i.id === selectedId);
+    if (!row?.playable) {
+      setManifestRenditions([]);
+      setSelectedQualityRenditionId(null);
+      return;
+    }
+    const preset =
+      SUBTITLE_PRESETS.find(p => p.id === subtitlePresetId) ??
+      SUBTITLE_PRESETS[0];
+    const resolvedUri = resolveSubtitlePresetUri(preset, row.uri);
+    if (!inferManifestKind(resolvedUri)) {
+      setManifestRenditions([]);
+      setSelectedQualityRenditionId(null);
+      return;
+    }
+    const ac = new AbortController();
+    loadManifestVideoRenditions(resolvedUri, row.headers, ac.signal)
+      .then(list => {
+        if (ac.signal.aborted) {
+          return;
+        }
+        setManifestRenditions(list);
+        setSelectedQualityRenditionId(null);
+      })
+      .catch(() => {
+        if (!ac.signal.aborted) {
+          setManifestRenditions([]);
+        }
+      });
+    return () => ac.abort();
+  }, [catalogItems, selectedId, subtitlePresetId]);
+
+  useEffect(() => {
+    if (modal === 'quality' && manifestRenditions.length <= 1) {
+      setModal('none');
+    }
+  }, [modal, manifestRenditions.length]);
+
   const activeSubtitlePreset =
     SUBTITLE_PRESETS.find(p => p.id === subtitlePresetId) ??
     SUBTITLE_PRESETS[0];
@@ -308,18 +358,24 @@ export function MediaCatalogPlayer() {
     if (!selectedItem) {
       return '';
     }
-    if (qualityVariantId && selectedItem.qualityVariants?.length) {
-      const variant = selectedItem.qualityVariants.find(
-        v => v.id === qualityVariantId,
-      );
-      if (variant) {
-        return variant.uri;
-      }
+    const baseUri = resolveSubtitlePresetUri(
+      activeSubtitlePreset,
+      selectedItem.uri,
+    );
+    if (
+      !selectedQualityRenditionId ||
+      manifestRenditions.length <= 1
+    ) {
+      return baseUri;
     }
-    return resolveSubtitlePresetUri(activeSubtitlePreset, selectedItem.uri);
+    const picked = manifestRenditions.find(
+      r => r.id === selectedQualityRenditionId,
+    );
+    return picked?.uri ?? baseUri;
   }, [
     selectedItem,
-    qualityVariantId,
+    selectedQualityRenditionId,
+    manifestRenditions,
     activeSubtitlePreset,
   ]);
   const videoSource = useMemo(() => {
@@ -354,7 +410,8 @@ export function MediaCatalogPlayer() {
     setSeekSliderValue(0);
     setAvailableTextTracks([]);
     setAvailableAudioTracks([]);
-    setQualityVariantId(null);
+    setManifestRenditions([]);
+    setSelectedQualityRenditionId(null);
     resumeSeekAfterQualityRef.current = null;
     setSelectedTextTrack({type: SelectedTrackType.DISABLED});
     setSelectedAudioTrack({type: SelectedTrackType.SYSTEM});
@@ -642,11 +699,13 @@ export function MediaCatalogPlayer() {
     setSelectedAudioTrack({type: SelectedTrackType.INDEX, value: index});
   }, []);
 
-  const qualityVariants = selectedItem?.qualityVariants ?? [];
+  const showQualityControl = manifestRenditions.length > 1;
 
-  const selectQualityVariant = useCallback((variantId: 'auto' | string) => {
+  const selectQualityRendition = useCallback((renditionId: 'auto' | string) => {
     resumeSeekAfterQualityRef.current = currentTimeRef.current;
-    setQualityVariantId(variantId === 'auto' ? null : variantId);
+    setSelectedQualityRenditionId(
+      renditionId === 'auto' ? null : renditionId,
+    );
     setModal('none');
   }, []);
 
@@ -798,14 +857,16 @@ export function MediaCatalogPlayer() {
                   }}>
                   <Text style={styles.iconGlyph}>⏱</Text>
                 </Pressable>
-                <Pressable
-                  style={styles.iconHit}
-                  onPress={() => {
-                    setModal('quality');
-                    showOverlay();
-                  }}>
-                  <Text style={styles.iconGlyph}>⚙</Text>
-                </Pressable>
+                {showQualityControl ? (
+                  <Pressable
+                    style={styles.iconHit}
+                    onPress={() => {
+                      setModal('quality');
+                      showOverlay();
+                    }}>
+                    <Text style={styles.iconGlyph}>⚙</Text>
+                  </Pressable>
+                ) : null}
               </View>
             </View>
 
@@ -1022,36 +1083,37 @@ export function MediaCatalogPlayer() {
         <Pressable style={styles.modalBackdrop} onPress={() => setModal('none')}>
           <Pressable style={styles.modalSheetSm} onPress={e => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Quality</Text>
-            {qualityVariants.length > 0 ? (
+            {manifestRenditions.length > 1 ? (
               <>
                 <Pressable
                   style={styles.qualityRow}
-                  onPress={() => selectQualityVariant('auto')}>
+                  onPress={() => selectQualityRendition('auto')}>
                   <Text style={styles.qualityText}>
                     Auto (ABR master)
-                    {qualityVariantId === null ? ' ✓' : ''}
+                    {selectedQualityRenditionId === null ? ' ✓' : ''}
                   </Text>
                 </Pressable>
-                {qualityVariants.map(variant => (
+                {manifestRenditions.map(r => (
                   <Pressable
-                    key={variant.id}
+                    key={r.id}
                     style={styles.qualityRow}
-                    onPress={() => selectQualityVariant(variant.id)}>
+                    onPress={() => selectQualityRendition(r.id)}>
                     <Text style={styles.qualityText}>
-                      {variant.label}
-                      {qualityVariantId === variant.id ? ' ✓' : ''}
+                      {r.label}
+                      {selectedQualityRenditionId === r.id ? ' ✓' : ''}
                     </Text>
                   </Pressable>
                 ))}
                 <Text style={styles.modalHint}>
-                  Switches to a fixed-rendition URL from the catalog (HLS, DASH
-                  master, or progressive MP4).
+                  Renditions are read from the HLS or DASH manifest. Manual
+                  selection loads a fixed variant URL; Auto uses the master
+                  manifest.
                 </Text>
               </>
             ) : (
               <Text style={styles.modalHint}>
-                No fixed quality URLs for this stream. Use Auto playback, or add
-                qualityVariants in curatedPlaylist.ts.
+                This stream has a single video rendition or is not HLS/DASH, so
+                there is no quality selector.
               </Text>
             )}
           </Pressable>

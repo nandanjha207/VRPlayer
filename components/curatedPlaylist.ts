@@ -4,7 +4,7 @@
  */
 
 import {Platform} from 'react-native';
-import type {CatalogStreamItem, QualityVariant} from './exoListParser';
+import type {CatalogStreamItem} from './exoListParser';
 
 /** KeyOS demo token (FairPlay) — rotate via your KeyOS portal when expired. */
 export const KEYOS_MERIDIAN_CUSTOM_DATA =
@@ -22,68 +22,12 @@ const WV_LICENSE_DEFAULT =
 const WV_LICENSE_RENEW =
   'https://proxy.uat.widevine.com/proxy?video_id=GTS_CAN_RENEW&provider=widevine_test';
 
-const TEARS_CLEAR_BASE =
-  'https://storage.googleapis.com/wvmedia/clear/h264/tears/';
-const CLEAR_DASH = `${TEARS_CLEAR_BASE}tears.mpd`;
-
-/** Same renditions as in tears.mpd (single-file MP4 per Representation). */
-const TEARS_CLEAR_QUALITY_VARIANTS: QualityVariant[] = [
-  {
-    id: 'tears-240',
-    label: '240p',
-    uri: `${TEARS_CLEAR_BASE}tears_h264_baseline_240p_800.mp4`,
-  },
-  {
-    id: 'tears-480',
-    label: '480p',
-    uri: `${TEARS_CLEAR_BASE}tears_h264_main_480p_2000.mp4`,
-  },
-  {
-    id: 'tears-720',
-    label: '720p',
-    uri: `${TEARS_CLEAR_BASE}tears_h264_main_720p_8000.mp4`,
-  },
-  {
-    id: 'tears-1080',
-    label: '1080p',
-    uri: `${TEARS_CLEAR_BASE}tears_h264_high_1080p_20000.mp4`,
-  },
-];
+const CLEAR_DASH =
+  'https://storage.googleapis.com/wvmedia/clear/h264/tears/tears.mpd';
 const HLS_UNIFIED =
   'https://demo.unified-streaming.com/k8s/features/stable/video/tears-of-steel/tears-of-steel.ism/.m3u8';
 const HLS_BIPBOP =
   'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8';
-const BIPBOP_16X9_BASE =
-  'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/';
-
-/** Fixed gear playlists — avoids Android selectedVideoTrack layout bugs. */
-const BIPBOP_QUALITY_VARIANTS: QualityVariant[] = [
-  {
-    id: '234',
-    label: '234p',
-    uri: `${BIPBOP_16X9_BASE}gear1/prog_index.m3u8`,
-  },
-  {
-    id: '360',
-    label: '360p',
-    uri: `${BIPBOP_16X9_BASE}gear2/prog_index.m3u8`,
-  },
-  {
-    id: '540',
-    label: '540p',
-    uri: `${BIPBOP_16X9_BASE}gear3/prog_index.m3u8`,
-  },
-  {
-    id: '720',
-    label: '720p',
-    uri: `${BIPBOP_16X9_BASE}gear4/prog_index.m3u8`,
-  },
-  {
-    id: '1080',
-    label: '1080p',
-    uri: `${BIPBOP_16X9_BASE}gear5/prog_index.m3u8`,
-  },
-];
 
 const MP4_BIG_BUCK_BUNNY =
   'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4';
@@ -153,7 +97,6 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
       title: 'HLS – Apple BipBop 16:9 (ABR)',
       uri: HLS_BIPBOP,
       thumbnailUri: THUMB_BIPBOP,
-      qualityVariants: BIPBOP_QUALITY_VARIANTS,
       tags: ['clear'],
       playable: true,
     },
@@ -170,7 +113,6 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
       title: 'DASH – Tears clear (wvmedia multi quality)',
       uri: CLEAR_DASH,
       thumbnailUri: THUMB_TEARS,
-      qualityVariants: TEARS_CLEAR_QUALITY_VARIANTS,
       tags: ['clear'],
       playable: true,
       unsupportedHint:
