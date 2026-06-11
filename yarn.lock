@@ -5421,9 +5421,9 @@ react-native-safe-area-context@^5.5.2:
   resolved "https://registry.npmjs.org/react-native-safe-area-context/-/react-native-safe-area-context-5.8.0.tgz"
   integrity sha512-t+ZsAVzY/wWzzx34vqGbo3/as9EEESJdbyZNL7Yg5EYX+toYMtMqFoDDCvqZUi35eeGVsXc6pAaEk4edMwbuCQ==
 
-"react-native-video@git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#spoTv/conviva-removed":
+"react-native-video@git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#spoTv/rn-player-conviva-removed":
   version "6.14.0"
-  resolved "git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#76868d498b195344c55cfea2e664b312e5de971c"
+  resolved "git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#0e762cf89827361ac56c283d3090e660c4ad1941"
 
 react-native@*, react-native@0.85.3:
   version "0.85.3"

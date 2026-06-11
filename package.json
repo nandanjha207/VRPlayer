@@ -16,7 +16,7 @@
     "react": "19.2.3",
     "react-native": "0.85.3",
     "react-native-safe-area-context": "^5.5.2",
-    "react-native-video": "git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#spoTv/conviva-removed"
+    "react-native-video": "git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#spoTv/rn-player-conviva-removed"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
