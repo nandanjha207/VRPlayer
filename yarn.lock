@@ -5423,7 +5423,7 @@ react-native-safe-area-context@^5.5.2:
 
 "react-native-video@git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#spoTv/rn-player-conviva-removed":
   version "6.14.0"
-  resolved "git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#0e762cf89827361ac56c283d3090e660c4ad1941"
+  resolved "git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#7765bcde8a0b36d93fc760ce2e8118195acb7476"
 
 react-native@*, react-native@0.85.3:
   version "0.85.3"
