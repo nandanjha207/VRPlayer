@@ -139,15 +139,22 @@ export function parseHlsMasterForVideoRenditions(
       continue;
     }
 
+    /** RFC 8216: variant URI may appear as URI="..." on the #EXT-X-STREAM-INF line. */
+    const inlineUri = (attrs.URI ?? '').trim();
+
     let uriLine = '';
-    for (let k = i + 1; k < lines.length; k++) {
-      const next = lines[k].trim();
-      if (!next || next.startsWith('#')) {
-        continue;
+    if (inlineUri) {
+      uriLine = inlineUri;
+    } else {
+      for (let k = i + 1; k < lines.length; k++) {
+        const next = lines[k].trim();
+        if (!next || next.startsWith('#')) {
+          continue;
+        }
+        uriLine = next;
+        i = k;
+        break;
       }
-      uriLine = next;
-      i = k;
-      break;
     }
     if (!uriLine) {
       continue;
@@ -318,12 +325,27 @@ export async function loadManifestVideoRenditions(
     return [];
   }
 
+  /**
+   * `fetch` follows redirects; `#EXT-X-STREAM-INF` relative URIs must be resolved
+   * against the **playlist document URL** (after redirects). Using the original
+   * request URL mis-resolves variants vs ExoPlayer, often yielding 404/HTML and
+   * HlsPlaylistParser "Input does not start with the #EXTM3U header".
+   */
+  let resolvedBaseUrl = manifestUrl;
+  if (typeof res.url === 'string' && res.url.length > 0) {
+    try {
+      resolvedBaseUrl = new URL(res.url).href;
+    } catch {
+      resolvedBaseUrl = manifestUrl;
+    }
+  }
+
   if (kind === 'hls') {
     if (!text.includes('#EXT-X-STREAM-INF')) {
       return [];
     }
-    return parseHlsMasterForVideoRenditions(text, manifestUrl);
+    return parseHlsMasterForVideoRenditions(text, resolvedBaseUrl);
   }
 
-  return parseDashMpdForVideoRenditions(text, manifestUrl);
+  return parseDashMpdForVideoRenditions(text, resolvedBaseUrl);
 }

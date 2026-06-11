@@ -21,6 +21,7 @@ import Slider from '@react-native-community/slider';
 import {
   DRMType,
   SelectedTrackType,
+  SelectedVideoTrackType,
   type Drm,
   type OnBufferData,
   type OnLoadData,
@@ -29,21 +30,19 @@ import {
   type OnVideoErrorData,
   type ReactVideoSource,
   type SelectedTrack,
+  type SelectedVideoTrack,
   type TextTracks,
   type VideoRef,
 } from 'react-native-video';
 import {CURATED_PLAYLIST} from './curatedPlaylist';
 import {type CatalogStreamItem} from './exoListParser';
-import {
-  inferManifestKind,
-  loadManifestVideoRenditions,
-  type ManifestVideoRendition,
-} from './manifestQualities';
+import {inferManifestKind} from './manifestQualities';
 import {PlaylistThumbnail} from './PlaylistThumbnail';
 import {
   SUBTITLE_PRESETS,
   resolveSubtitlePresetUri,
 } from './subtitlePresets';
+import {prepareVideoTracksForQualityUi} from './videoTrackQualityMenu';
 import {VideoPlayer} from './videoFork';
 
 const SEEK_STEP_SECONDS = 10;
@@ -67,6 +66,21 @@ function inferVideoType(uri: string): string | undefined {
     return 'ism';
   }
   return undefined;
+}
+
+/**
+ * When switching HLS quality, variant URLs often omit ".m3u8"; ExoPlayer must still
+ * use the HLS pipeline or sniffing can load non-playlist bytes and throw ParserException.
+ */
+function inferCatalogPlaybackVideoType(
+  playbackUri: string,
+  catalogMasterUri: string,
+): string | undefined {
+  const kind = inferManifestKind(catalogMasterUri);
+  if (kind === 'hls') {
+    return 'm3u8';
+  }
+  return inferVideoType(playbackUri);
 }
 
 function buildDrmConfig(item: CatalogStreamItem): Drm | undefined {
@@ -142,9 +156,10 @@ function buildDrmConfig(item: CatalogStreamItem): Drm | undefined {
 function buildCatalogSource(
   item: CatalogStreamItem,
   videoUri: string,
+  catalogMasterUri: string,
   sidecarTextTracks?: TextTracks,
 ): ReactVideoSource {
-  const type = inferVideoType(videoUri);
+  const type = inferCatalogPlaybackVideoType(videoUri, catalogMasterUri);
   const drm = buildDrmConfig(item);
   const ad = item.adTagUri ? {adTagUrl: item.adTagUri} : undefined;
 
@@ -182,6 +197,30 @@ function formatAudioTrackLabel(
 ): string {
   const parts = [track.language, track.title].filter(Boolean);
   return parts.length > 0 ? parts.join(' – ') : `Audio ${index}`;
+}
+
+type VideoTrackRow = OnLoadData['videoTracks'][number];
+
+function formatVideoTrackLabel(track: VideoTrackRow, listIndex: number): string {
+  const w = track.width;
+  const h = track.height;
+  const bw = track.bitrate;
+  if (h && w) {
+    return `${h}p (${w}×${h})`;
+  }
+  if (h) {
+    return `${h}p`;
+  }
+  if (w) {
+    return `${w}w`;
+  }
+  if (bw && bw >= 1_000_000) {
+    return `${(bw / 1_000_000).toFixed(1)} Mbps`;
+  }
+  if (bw) {
+    return `${Math.round(bw / 1000)} kbps`;
+  }
+  return `Quality ${listIndex + 1}`;
 }
 
 function tagLabel(tag: string): string {
@@ -242,7 +281,6 @@ export function MediaCatalogPlayer() {
   const seekReleaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
-  const resumeSeekAfterQualityRef = useRef<number | null>(null);
   const wasPlayingBeforeBackgroundRef = useRef(false);
   const playbackSnapshotRef = useRef({
     paused: true,
@@ -276,14 +314,14 @@ export function MediaCatalogPlayer() {
   const [selectedAudioTrack, setSelectedAudioTrack] = useState<SelectedTrack>({
     type: SelectedTrackType.SYSTEM,
   });
-  /** Video renditions parsed from HLS/DASH manifest; empty if N/A or loading. */
-  const [manifestRenditions, setManifestRenditions] = useState<
-    ManifestVideoRendition[]
+  /** From ExoPlayer / AVPlayer after manifest is mapped (adaptive HLS/DASH). */
+  const [availableVideoTracks, setAvailableVideoTracks] = useState<
+    OnLoadData['videoTracks']
   >([]);
-  /** null = Auto (adaptive master); otherwise ManifestVideoRendition.id */
-  const [selectedQualityRenditionId, setSelectedQualityRenditionId] = useState<
-    string | null
-  >(null);
+  /** `auto` = ABR; otherwise native video track `index` for fixed quality. */
+  const [videoQualitySelection, setVideoQualitySelection] = useState<
+    'auto' | number
+  >('auto');
   const [subtitleFontSize, setSubtitleFontSize] = useState(16);
   const [subtitleOpacity, setSubtitleOpacity] = useState(1);
 
@@ -313,43 +351,20 @@ export function MediaCatalogPlayer() {
   }, [duration]);
 
   useEffect(() => {
-    const row = catalogItems.find(i => i.id === selectedId);
-    if (!row?.playable) {
-      setManifestRenditions([]);
-      setSelectedQualityRenditionId(null);
+    if (videoQualitySelection === 'auto') {
       return;
     }
-    const preset =
-      SUBTITLE_PRESETS.find(p => p.id === subtitlePresetId) ??
-      SUBTITLE_PRESETS[0];
-    const resolvedUri = resolveSubtitlePresetUri(preset, row.uri);
-    if (!inferManifestKind(resolvedUri)) {
-      setManifestRenditions([]);
-      setSelectedQualityRenditionId(null);
-      return;
+    const ok = availableVideoTracks.some(t => t.index === videoQualitySelection);
+    if (!ok) {
+      setVideoQualitySelection('auto');
     }
-    const ac = new AbortController();
-    loadManifestVideoRenditions(resolvedUri, row.headers, ac.signal)
-      .then(list => {
-        if (ac.signal.aborted) {
-          return;
-        }
-        setManifestRenditions(list);
-        setSelectedQualityRenditionId(null);
-      })
-      .catch(() => {
-        if (!ac.signal.aborted) {
-          setManifestRenditions([]);
-        }
-      });
-    return () => ac.abort();
-  }, [catalogItems, selectedId, subtitlePresetId]);
+  }, [availableVideoTracks, videoQualitySelection]);
 
   useEffect(() => {
-    if (modal === 'quality' && manifestRenditions.length <= 1) {
+    if (modal === 'quality' && availableVideoTracks.length <= 1) {
       setModal('none');
     }
-  }, [modal, manifestRenditions.length]);
+  }, [modal, availableVideoTracks.length]);
 
   const activeSubtitlePreset =
     SUBTITLE_PRESETS.find(p => p.id === subtitlePresetId) ??
@@ -358,36 +373,36 @@ export function MediaCatalogPlayer() {
     if (!selectedItem) {
       return '';
     }
-    const baseUri = resolveSubtitlePresetUri(
+    return resolveSubtitlePresetUri(
       activeSubtitlePreset,
       selectedItem.uri,
     );
-    if (
-      !selectedQualityRenditionId ||
-      manifestRenditions.length <= 1
-    ) {
-      return baseUri;
+  }, [selectedItem, activeSubtitlePreset]);
+
+  const selectedVideoTrackProp = useMemo((): SelectedVideoTrack => {
+    if (videoQualitySelection === 'auto') {
+      return {type: SelectedVideoTrackType.AUTO};
     }
-    const picked = manifestRenditions.find(
-      r => r.id === selectedQualityRenditionId,
-    );
-    return picked?.uri ?? baseUri;
-  }, [
-    selectedItem,
-    selectedQualityRenditionId,
-    manifestRenditions,
-    activeSubtitlePreset,
-  ]);
+    return {
+      type: SelectedVideoTrackType.INDEX,
+      value: videoQualitySelection,
+    };
+  }, [videoQualitySelection]);
   const videoSource = useMemo(() => {
     if (!selectedItem?.playable || !playbackUri) {
       return undefined;
     }
+    const catalogMasterUri = resolveSubtitlePresetUri(
+      activeSubtitlePreset,
+      selectedItem.uri,
+    );
     return buildCatalogSource(
       selectedItem,
       playbackUri,
+      catalogMasterUri,
       activeSubtitlePreset.textTracks,
     );
-  }, [selectedItem, playbackUri, activeSubtitlePreset.textTracks]);
+  }, [selectedItem, playbackUri, activeSubtitlePreset]);
 
   const releaseSeekLock = useCallback(() => {
     if (seekReleaseTimerRef.current) {
@@ -410,9 +425,8 @@ export function MediaCatalogPlayer() {
     setSeekSliderValue(0);
     setAvailableTextTracks([]);
     setAvailableAudioTracks([]);
-    setManifestRenditions([]);
-    setSelectedQualityRenditionId(null);
-    resumeSeekAfterQualityRef.current = null;
+    setAvailableVideoTracks([]);
+    setVideoQualitySelection('auto');
     setSelectedTextTrack({type: SelectedTrackType.DISABLED});
     setSelectedAudioTrack({type: SelectedTrackType.SYSTEM});
     setLastError(null);
@@ -486,15 +500,14 @@ export function MediaCatalogPlayer() {
     if (data.audioTracks?.length) {
       setAvailableAudioTracks(data.audioTracks);
     }
-    const resumeAt = resumeSeekAfterQualityRef.current;
-    if (resumeAt !== null && resumeAt > 0) {
-      resumeSeekAfterQualityRef.current = null;
-      setTimeout(() => {
-        videoRef.current?.seek(resumeAt);
-        currentTimeRef.current = resumeAt;
-        setCurrentTime(resumeAt);
-        setSeekSliderValue(resumeAt);
-      }, 0);
+    if (data.videoTracks !== undefined) {
+      if (data.videoTracks.length > 0) {
+        setAvailableVideoTracks(
+          prepareVideoTracksForQualityUi(data.videoTracks),
+        );
+      } else {
+        setAvailableVideoTracks([]);
+      }
     }
   }, []);
 
@@ -503,6 +516,21 @@ export function MediaCatalogPlayer() {
       setAvailableTextTracks(data.textTracks as OnLoadData['textTracks']);
     }
   }, []);
+
+  const handleVideoTracks = useCallback(
+    (data: {videoTracks: OnLoadData['videoTracks']}) => {
+      if (data.videoTracks !== undefined) {
+        if (data.videoTracks.length > 0) {
+          setAvailableVideoTracks(
+            prepareVideoTracksForQualityUi(data.videoTracks),
+          );
+        } else {
+          setAvailableVideoTracks([]);
+        }
+      }
+    },
+    [],
+  );
 
   const handleProgress = useCallback(
     (data: OnProgressData) => {
@@ -699,14 +727,20 @@ export function MediaCatalogPlayer() {
     setSelectedAudioTrack({type: SelectedTrackType.INDEX, value: index});
   }, []);
 
-  const showQualityControl = manifestRenditions.length > 1;
+  const showQualityControl = availableVideoTracks.length > 1;
 
-  const selectQualityRendition = useCallback((renditionId: 'auto' | string) => {
-    resumeSeekAfterQualityRef.current = currentTimeRef.current;
-    setSelectedQualityRenditionId(
-      renditionId === 'auto' ? null : renditionId,
-    );
+  const selectVideoQuality = useCallback((qv: 'auto' | number) => {
+    const resumeAt = currentTimeRef.current;
+    setVideoQualitySelection(qv);
     setModal('none');
+    if (resumeAt > 0.05) {
+      setTimeout(() => {
+        videoRef.current?.seek(resumeAt);
+        currentTimeRef.current = resumeAt;
+        setCurrentTime(resumeAt);
+        setSeekSliderValue(resumeAt);
+      }, 120);
+    }
   }, []);
 
   const maxSeek = duration > 0 ? duration : 1;
@@ -794,6 +828,7 @@ export function MediaCatalogPlayer() {
               rate={playbackRate}
               selectedTextTrack={selectedTextTrack}
               selectedAudioTrack={selectedAudioTrack}
+              selectedVideoTrack={selectedVideoTrackProp}
               subtitleStyle={subtitleVideoStyle}
               controls={false}
               playInBackground={false}
@@ -806,6 +841,7 @@ export function MediaCatalogPlayer() {
               onEnd={handleEnd}
               onError={handleError}
               onTextTracks={handleTextTracks}
+              onVideoTracks={handleVideoTracks}
               onFullscreenPlayerDidPresent={() => setIsFullscreen(true)}
               onFullscreenPlayerDidDismiss={() => setIsFullscreen(false)}
             />
@@ -1083,37 +1119,41 @@ export function MediaCatalogPlayer() {
         <Pressable style={styles.modalBackdrop} onPress={() => setModal('none')}>
           <Pressable style={styles.modalSheetSm} onPress={e => e.stopPropagation()}>
             <Text style={styles.modalTitle}>Quality</Text>
-            {manifestRenditions.length > 1 ? (
+            {availableVideoTracks.length > 1 ? (
               <>
                 <Pressable
                   style={styles.qualityRow}
-                  onPress={() => selectQualityRendition('auto')}>
+                  onPress={() => selectVideoQuality('auto')}>
                   <Text style={styles.qualityText}>
-                    Auto (ABR master)
-                    {selectedQualityRenditionId === null ? ' ✓' : ''}
+                    Auto (ABR)
+                    {videoQualitySelection === 'auto' ? ' ✓' : ''}
                   </Text>
                 </Pressable>
-                {manifestRenditions.map(r => (
+                {availableVideoTracks.map((track, listIndex) => (
                   <Pressable
-                    key={r.id}
+                    key={`vt-${track.index ?? listIndex}`}
                     style={styles.qualityRow}
-                    onPress={() => selectQualityRendition(r.id)}>
+                    onPress={() => {
+                      if (track.index !== undefined) {
+                        selectVideoQuality(track.index);
+                      }
+                    }}>
                     <Text style={styles.qualityText}>
-                      {r.label}
-                      {selectedQualityRenditionId === r.id ? ' ✓' : ''}
+                      {formatVideoTrackLabel(track, listIndex)}
+                      {videoQualitySelection === track.index ? ' ✓' : ''}
                     </Text>
                   </Pressable>
                 ))}
                 <Text style={styles.modalHint}>
-                  Renditions are read from the HLS or DASH manifest. Manual
-                  selection loads a fixed variant URL; Auto uses the master
-                  manifest.
+                  Quality uses the native video tracks from the player (one master
+                  URL). Works for adaptive HLS/DASH from any feed without
+                  hard-coding rendition URLs.
                 </Text>
               </>
             ) : (
               <Text style={styles.modalHint}>
-                This stream has a single video rendition or is not HLS/DASH, so
-                there is no quality selector.
+                This stream exposes a single video track (or none yet). Try again
+                after playback starts, or the asset may be progressive / non-ABR.
               </Text>
             )}
           </Pressable>

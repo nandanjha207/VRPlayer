@@ -54,6 +54,20 @@ describe('parseHlsMasterForVideoRenditions', () => {
     expect(r[0].uri).toBe('https://cdn.example/path/high/prog_index.m3u8');
     expect(r[1].bandwidth).toBe(100);
   });
+
+  it('uses URI= on the #EXT-X-STREAM-INF line when present (RFC 8216)', () => {
+    const master = [
+      '#EXTM3U',
+      '#EXT-X-STREAM-INF:BANDWIDTH=100,CODECS="avc1.4d400d",URI="renditions/low.m3u8"',
+      '#EXT-X-STREAM-INF:BANDWIDTH=200,CODECS="avc1.4d400d",URI="renditions/high.m3u8"',
+    ].join('\n');
+    const base = 'https://cdn.example/live/out/master.m3u8';
+    const r = parseHlsMasterForVideoRenditions(master, base);
+    expect(r).toHaveLength(2);
+    expect(r[0].bandwidth).toBe(200);
+    expect(r[0].uri).toBe('https://cdn.example/live/out/renditions/high.m3u8');
+    expect(r[1].uri).toBe('https://cdn.example/live/out/renditions/low.m3u8');
+  });
 });
 
 describe('parseDashMpdForVideoRenditions', () => {
@@ -92,5 +106,23 @@ describe('resolveAgainstManifest', () => {
         'child/playlist.m3u8',
       ),
     ).toBe('https://a.com/b/c/child/playlist.m3u8');
+  });
+});
+
+describe('HLS base URL (redirect parity)', () => {
+  it('variant absolute URL depends on manifest base path (must match post-redirect URL)', () => {
+    const master = [
+      '#EXTM3U',
+      '#EXT-X-STREAM-INF:BANDWIDTH=100,CODECS="avc1.4d400d"',
+      'renditions/low.m3u8',
+    ].join('\n');
+    const entryPoint = 'https://go.example/start.m3u8';
+    const afterRedirect = 'https://cdn.example/vod/season/1/master.m3u8';
+    const fromEntry = parseHlsMasterForVideoRenditions(master, entryPoint)[0]
+      .uri;
+    const fromFinal = parseHlsMasterForVideoRenditions(master, afterRedirect)[0]
+      .uri;
+    expect(fromEntry).toBe('https://go.example/renditions/low.m3u8');
+    expect(fromFinal).toBe('https://cdn.example/vod/season/1/renditions/low.m3u8');
   });
 });
