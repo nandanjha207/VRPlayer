@@ -8,6 +8,7 @@ import {
   AppState,
   type AppStateStatus,
   FlatList,
+  Image,
   Modal,
   Platform,
   Pressable,
@@ -38,10 +39,16 @@ import {CURATED_PLAYLIST} from './curatedPlaylist';
 import {type CatalogStreamItem} from './exoListParser';
 import {inferManifestKind} from './manifestQualities';
 import {PlaylistThumbnail} from './PlaylistThumbnail';
+import {ScrubStoryboardThumb} from './ScrubStoryboardThumb';
 import {
   SUBTITLE_PRESETS,
   resolveSubtitlePresetUri,
 } from './subtitlePresets';
+import {
+  findStoryboardCueAt,
+  parseThumbnailStoryboardVtt,
+  type ParsedStoryboardCue,
+} from './thumbnailStoryboardVtt';
 import {prepareVideoTracksForQualityUi} from './videoTrackQualityMenu';
 import {VideoPlayer} from './videoFork';
 
@@ -50,6 +57,9 @@ const VIDEO_HORIZONTAL_PADDING = 24;
 const VIDEO_ASPECT_RATIO = 16 / 9;
 const PLAYBACK_RATES = [0.5, 1, 1.25, 1.5, 2] as const;
 const OVERLAY_HIDE_MS = 4500;
+/** Scrub tooltip: width used for horizontal clamping above the seek bar. */
+const SCRUB_PREVIEW_WIDTH = 96;
+const SCRUB_PREVIEW_HEIGHT = 54;
 
 function inferVideoType(uri: string): string | undefined {
   const lower = uri.toLowerCase();
@@ -336,6 +346,12 @@ export function MediaCatalogPlayer() {
   const [duration, setDuration] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
   const [seekSliderValue, setSeekSliderValue] = useState(0);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [seekTrackWidth, setSeekTrackWidth] = useState(0);
+  const [scrubPosterLoadFailed, setScrubPosterLoadFailed] = useState(false);
+  const [storyboardCues, setStoryboardCues] = useState<ParsedStoryboardCue[]>(
+    [],
+  );
 
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
@@ -349,6 +365,93 @@ export function MediaCatalogPlayer() {
   useEffect(() => {
     durationRef.current = duration;
   }, [duration]);
+
+  useEffect(() => {
+    setScrubPosterLoadFailed(false);
+  }, [selectedItem?.id]);
+
+  useEffect(() => {
+    if (!selectedItem) {
+      setStoryboardCues([]);
+      return;
+    }
+    const inline = selectedItem.thumbnailStoryboardVttText;
+    const uri = selectedItem.thumbnailStoryboardVttUri;
+    const streamLabel = `${selectedItem.id}: ${selectedItem.title}`;
+    if (inline) {
+      const cues = parseThumbnailStoryboardVtt(
+        inline,
+        uri ?? 'https://dash.akamaized.net/akamai/bbb_30fps/storyboard.vtt',
+      );
+      if (__DEV__) {
+        // eslint-disable-next-line no-console
+        console.log(
+          '[storyboard] inline VTT parsed',
+          streamLabel,
+          'cues:',
+          cues.length,
+        );
+      }
+      setStoryboardCues(cues);
+      return;
+    }
+    if (!uri) {
+      setStoryboardCues([]);
+      return;
+    }
+    const ac = new AbortController();
+    if (__DEV__) {
+      // eslint-disable-next-line no-console
+      console.log('[storyboard] VTT fetch start', streamLabel, uri);
+    }
+    const fetchHeaders = selectedItem.headers;
+    (async () => {
+      try {
+        const res = await fetch(uri, {
+          ...(fetchHeaders ? {headers: fetchHeaders} : {}),
+          signal: ac.signal,
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        const text = await res.text();
+        if (ac.signal.aborted) {
+          return;
+        }
+        const cues = parseThumbnailStoryboardVtt(text, res.url || uri);
+        if (__DEV__) {
+          const first = cues[0];
+          // eslint-disable-next-line no-console
+          console.log(
+            '[storyboard] VTT fetch OK',
+            streamLabel,
+            uri,
+            'cues:',
+            cues.length,
+            first
+              ? `first image=${first.imageUri} region=${JSON.stringify(first.region)} spriteBounds=${JSON.stringify(first.spriteBounds)}`
+              : '(no cues)',
+          );
+        }
+        setStoryboardCues(cues);
+      } catch (e) {
+        if (!ac.signal.aborted) {
+          if (__DEV__) {
+            // eslint-disable-next-line no-console
+            console.warn('[storyboard] VTT fetch failed', streamLabel, uri, e);
+          }
+          setStoryboardCues([]);
+        }
+      }
+    })();
+    return () => ac.abort();
+  }, [
+    selectedItem?.id,
+    selectedItem?.title,
+    selectedItem?.thumbnailStoryboardVttText,
+    selectedItem?.thumbnailStoryboardVttUri,
+    selectedItem?.headers,
+  ]);
 
   useEffect(() => {
     if (videoQualitySelection === 'auto') {
@@ -673,7 +776,9 @@ export function MediaCatalogPlayer() {
   const handleSeekStart = useCallback(() => {
     isSeekingRef.current = true;
     seekTargetRef.current = null;
-  }, []);
+    setIsScrubbing(true);
+    showOverlay();
+  }, [showOverlay]);
 
   const handleSeekChange = useCallback((value: number) => {
     setSeekSliderValue(value);
@@ -682,6 +787,7 @@ export function MediaCatalogPlayer() {
 
   const handleSeekComplete = useCallback(
     (value: number) => {
+      setIsScrubbing(false);
       commitSeek(value);
       showOverlay();
     },
@@ -744,6 +850,24 @@ export function MediaCatalogPlayer() {
   }, []);
 
   const maxSeek = duration > 0 ? duration : 1;
+  const scrubStoryboardCue = useMemo(() => {
+    if (!isScrubbing || duration <= 0 || storyboardCues.length === 0) {
+      return null;
+    }
+    return findStoryboardCueAt(storyboardCues, seekSliderValue);
+  }, [duration, isScrubbing, seekSliderValue, storyboardCues]);
+  const scrubPreviewLeft = useMemo(() => {
+    if (seekTrackWidth <= 0 || maxSeek <= 0) {
+      return 0;
+    }
+    const ratio = seekSliderValue / maxSeek;
+    const centerX = ratio * seekTrackWidth;
+    const half = SCRUB_PREVIEW_WIDTH / 2;
+    return Math.min(
+      Math.max(0, centerX - half),
+      Math.max(0, seekTrackWidth - SCRUB_PREVIEW_WIDTH),
+    );
+  }, [seekTrackWidth, maxSeek, seekSliderValue]);
   const showReplay = hasEnded && !loopEnabled;
   const isTextOff = selectedTextTrack.type === SelectedTrackType.DISABLED;
   const isLiveLayout =
@@ -935,7 +1059,51 @@ export function MediaCatalogPlayer() {
               </Pressable>
             </View>
 
-            <View style={styles.overlayBottom}>
+            <View
+              style={styles.overlayBottom}
+              onLayout={e => setSeekTrackWidth(e.nativeEvent.layout.width)}>
+              {isScrubbing && duration > 0 ? (
+                <View
+                  style={[
+                    styles.scrubPreviewBubble,
+                    {left: scrubPreviewLeft, width: SCRUB_PREVIEW_WIDTH},
+                  ]}
+                  pointerEvents="none">
+                  {scrubStoryboardCue ? (
+                    <ScrubStoryboardThumb
+                      key={`scrub-img-${scrubStoryboardCue.imageUri}`}
+                      imageUri={scrubStoryboardCue.imageUri}
+                      region={scrubStoryboardCue.region}
+                      boxWidth={SCRUB_PREVIEW_WIDTH}
+                      boxHeight={SCRUB_PREVIEW_HEIGHT}
+                      imageRequestHeaders={selectedItem?.headers}
+                      spriteBounds={scrubStoryboardCue.spriteBounds}
+                    />
+                  ) : selectedItem?.thumbnailUri && !scrubPosterLoadFailed ? (
+                    <Image
+                      source={
+                        selectedItem.headers &&
+                        Object.keys(selectedItem.headers).length > 0
+                          ? {
+                              uri: selectedItem.thumbnailUri,
+                              headers: selectedItem.headers,
+                            }
+                          : {uri: selectedItem.thumbnailUri}
+                      }
+                      style={styles.scrubPreviewImage}
+                      resizeMode="cover"
+                      onError={() => setScrubPosterLoadFailed(true)}
+                    />
+                  ) : (
+                    <View style={styles.scrubPreviewPlaceholder}>
+                      <Text style={styles.scrubPreviewPlaceholderGlyph}>▶</Text>
+                    </View>
+                  )}
+                  <Text style={styles.scrubPreviewTime}>
+                    {formatTime(seekSliderValue)}
+                  </Text>
+                </View>
+              ) : null}
               <View style={styles.timeRow}>
                 <Text style={styles.timeMono}>{formatTime(currentTime)}</Text>
                 <Text style={styles.timeMono}>{formatTime(duration)}</Text>
@@ -1337,6 +1505,47 @@ const styles = StyleSheet.create({
   overlayBottom: {
     paddingHorizontal: 10,
     paddingBottom: 8,
+    position: 'relative',
+  },
+  scrubPreviewBubble: {
+    position: 'absolute',
+    bottom: 100,
+    zIndex: 4,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(15,23,42,0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.5)',
+    shadowColor: '#000',
+    shadowOffset: {width: 0, height: 2},
+    shadowOpacity: 0.45,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  scrubPreviewImage: {
+    width: '100%',
+    height: SCRUB_PREVIEW_HEIGHT,
+  },
+  scrubPreviewPlaceholder: {
+    width: '100%',
+    height: SCRUB_PREVIEW_HEIGHT,
+    backgroundColor: '#1e293b',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scrubPreviewPlaceholderGlyph: {
+    color: '#64748b',
+    fontSize: 22,
+  },
+  scrubPreviewTime: {
+    color: '#f8fafc',
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    textAlign: 'center',
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+    backgroundColor: 'rgba(2,6,23,0.55)',
   },
   timeRow: {
     flexDirection: 'row',

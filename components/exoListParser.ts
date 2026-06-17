@@ -44,6 +44,16 @@ export type CatalogStreamItem = {
   fairPlayContentId?: string;
   /** Optional poster / thumbnail for playlist row. */
   thumbnailUri?: string;
+  /**
+   * Optional WebVTT storyboard for scrub previews (time ranges → image URL + optional #xywh sprite crop).
+   * Your encoder / CDN must supply this; react-native-video does not synthesize it from the video.
+   */
+  thumbnailStoryboardVttUri?: string;
+  /**
+   * Same cue format as {@link thumbnailStoryboardVttUri}, but embedded in the app (no network fetch).
+   * When set, it wins over `thumbnailStoryboardVttUri` for parsing.
+   */
+  thumbnailStoryboardVttText?: string;
   /** HTTP headers for manifest + media requests (e.g. CDN User-Agent allowlist). */
   headers?: Record<string, string>;
   tags: StreamTag[];

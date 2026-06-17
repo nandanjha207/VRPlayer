@@ -2,6 +2,21 @@ import React, {useState} from 'react';
 import {Image, StyleSheet, Text, View} from 'react-native';
 import type {CatalogStreamItem} from './exoListParser';
 
+function buildPosterSource(
+  item: CatalogStreamItem,
+):
+  | {uri: string; headers: Record<string, string>}
+  | {uri: string}
+  | undefined {
+  if (!item.thumbnailUri) {
+    return undefined;
+  }
+  if (item.headers && Object.keys(item.headers).length > 0) {
+    return {uri: item.thumbnailUri, headers: item.headers};
+  }
+  return {uri: item.thumbnailUri};
+}
+
 function formatLabel(item: CatalogStreamItem): string {
   const lower = item.uri.toLowerCase();
   if (item.tags.includes('live')) {
@@ -55,7 +70,7 @@ export function PlaylistThumbnail({item}: PlaylistThumbnailProps) {
     <View style={styles.wrap}>
       {showImage ? (
         <Image
-          source={{uri: item.thumbnailUri}}
+          source={buildPosterSource(item)!}
           style={styles.image}
           resizeMode="cover"
           onError={() => setImageFailed(true)}

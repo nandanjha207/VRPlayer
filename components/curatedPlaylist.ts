@@ -4,6 +4,7 @@
  */
 
 import {Platform} from 'react-native';
+import {buildAkamaiBbbThumbnailStoryboardVtt} from './akamaiBbbThumbnailStoryboardVtt';
 import type {CatalogStreamItem} from './exoListParser';
 
 /** KeyOS demo token (FairPlay) — rotate via your KeyOS portal when expired. */
@@ -30,6 +31,16 @@ const HLS_UNIFIED =
 const HLS_BIPBOP =
   'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8';
 
+/** Nuevo Devel sample: HLS + external WebVTT scrub thumbnails. */
+const NUEVO_COFFEE_HLS =
+  'https://stream.nuevodevel.com/hls/coffee/playlist.m3u8';
+const NUEVO_COFFEE_THUMB_VTT =
+  'https://nvd.nuevodevel.com/media/coffee3.vtt';
+const NUEVO_COFFEE_POSTER =
+  'https://nvd.nuevodevel.com/media/coffee16.jpg';
+const AKAMAI_BBB_DASH_WITH_THUMBS =
+  'https://dash.akamaized.net/akamai/bbb_30fps/bbb_with_thumbnails.mpd';
+
 const MP4_BIG_BUCK_BUNNY =
   'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4';
 
@@ -39,6 +50,15 @@ const HLS_LIVE_FORSTREET = 'https://live.forstreet.cl/live/livestream.m3u8';
 /** Forstreet CDN returns 400 for ExoPlayer / AVPlayer UAs — browser UA required. */
 const BROWSER_USER_AGENT =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+/**
+ * BunnyCDN (stream.nuevodevel.com / nvd.nuevodevel.com) returns 403 without a browser-like
+ * User-Agent **and** a site Referer (curl: Referer https://nuevodevel.com/ → 200).
+ */
+const NUEVO_DEVEL_CDN_HEADERS: Record<string, string> = {
+  'User-Agent': BROWSER_USER_AGENT,
+  Referer: 'https://nuevodevel.com/',
+};
 
 /** Shaka Player public FairPlay demo (no customdata — native FPS license flow). */
 const SHAKA_ANGEL_ONE_HLS =
@@ -100,6 +120,18 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
       thumbnailUri: THUMB_BIPBOP,
       tags: ['clear'],
       playable: true,
+    },
+    {
+      category: 'HLS (clear)',
+      title: 'HLS – Nuevo Devel Coffee (WebVTT scrub thumbs)',
+      uri: NUEVO_COFFEE_HLS,
+      thumbnailUri: NUEVO_COFFEE_POSTER,
+      thumbnailStoryboardVttUri: NUEVO_COFFEE_THUMB_VTT,
+      headers: NUEVO_DEVEL_CDN_HEADERS,
+      tags: ['clear'],
+      playable: true,
+      unsupportedHint:
+        'BunnyCDN requires browser User-Agent + Referer (https://nuevodevel.com/) like a page embed.',
     },
     {
       category: 'HLS (clear)',
