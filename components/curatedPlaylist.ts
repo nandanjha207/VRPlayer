@@ -6,6 +6,10 @@
 import {Platform} from 'react-native';
 import {buildAkamaiBbbThumbnailStoryboardVtt} from './akamaiBbbThumbnailStoryboardVtt';
 import type {CatalogStreamItem} from './exoListParser';
+import {
+  GOOGLE_IMA_LINEAR_PREROLL_AD_TAG,
+  GOOGLE_IMA_SAMPLE_CONTENT_URI,
+} from './googleImaSampleConfig';
 
 /** KeyOS demo token (FairPlay) — rotate via your KeyOS portal when expired. */
 export const KEYOS_MERIDIAN_CUSTOM_DATA =
@@ -94,6 +98,17 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
       thumbnailUri: THUMB_BIG_BUCK_BUNNY,
       tags: ['clear'],
       playable: true,
+    },
+    {
+      category: 'Ads (IMA)',
+      title: 'IMA sample content + Google linear preroll (MKV Android / MP4 iOS)',
+      uri: GOOGLE_IMA_SAMPLE_CONTENT_URI,
+      adTagUri: GOOGLE_IMA_LINEAR_PREROLL_AD_TAG,
+      thumbnailUri: THUMB_BIG_BUCK_BUNNY,
+      tags: ['clear', 'ads'],
+      playable: true,
+      unsupportedHint:
+        'Tap play first (fork: Android needs isContentPlaying to resume). iOS uses MP4 — AVPlayer cannot play the ExoPlayer MKV sample.',
     },
     {
       category: 'Test',

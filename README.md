@@ -1,5 +1,11 @@
 This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
 
+## Google IMA (client-side ads)
+
+Native flags are enabled for **`react-native-video`** (ExoPlayer IMA on Android, Google IMA SDK on iOS). Use **`source.ad.adTagUrl`** on `<Video />`; see **[docs/video-ads-ima.md](docs/video-ads-ima.md)** for rebuild steps, Expo config plugin notes, and how to **rotate staging vs production** ad tags.
+
+In the running app, open the **IMA ads** tab (next to **Catalog**) for Google sample VAST/VMAP tags and an **event log**, or pick **“MKV + Google sample linear preroll”** in **Catalog** to use the **same** `source.ad` path in the main player (tap **play** first so Android gets `isContentPlaying` — see `docs/video-ads-ima.md`).
+
 ## Curated QA playlist
 
 The app uses a **short curated list** in `components/curatedPlaylist.ts` (not the full ExoList):
@@ -10,8 +16,6 @@ The app uses a **short curated list** in `components/curatedPlaylist.ts` (not th
 - **KeyOS FairPlay** HLS (Netflix Meridian) on iOS with your `customdata` token
 
 Edit that file to add URLs or swap in rows from `assets/media.exolist.json` later via `flattenExoList()`.
-
-The legacy harness **`SimpleVideoPlayer`** remains in `components/SimpleVideoPlayer.tsx` for focused control testing (not mounted in `App.tsx` by default).
 
 # Getting Started
 

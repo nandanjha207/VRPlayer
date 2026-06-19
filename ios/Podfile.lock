@@ -1,5 +1,6 @@
 PODS:
   - FBLazyVector (0.85.3)
+  - GoogleAds-IMA-iOS-SDK (3.23.0)
   - hermes-engine (250829098.0.10):
     - hermes-engine/Pre-built (= 250829098.0.10)
   - hermes-engine/Pre-built (250829098.0.10)
@@ -1562,6 +1563,8 @@ PODS:
     - ReactNativeDependencies
     - Yoga
   - react-native-video/Video (6.14.0):
+    - GoogleAds-IMA-iOS-SDK (~> 3.23.0)
+    - GoogleAds-IMA-tvOS-SDK (~> 4.2)
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -2051,6 +2054,10 @@ DEPENDENCIES:
   - ReactNativeDependencies (from `../node_modules/react-native/third-party-podspecs/ReactNativeDependencies.podspec`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
+SPEC REPOS:
+  trunk:
+    - GoogleAds-IMA-iOS-SDK
+
 EXTERNAL SOURCES:
   FBLazyVector:
     :path: "../node_modules/react-native/Libraries/FBLazyVector"
@@ -2210,6 +2217,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   FBLazyVector: 24e62c765683b8d89006a88a2c8f5cf019f0074d
+  GoogleAds-IMA-iOS-SDK: ee2a68ed7a1a17c7bb81bdb1b81590b35a3fc8f3
   hermes-engine: d3f2815f1e0be1e118026920cab2f5229a4e3273
   RCTDeprecation: a4c521821fab57cbb125b36effe84d897d0dfa12
   RCTRequired: 9f3a7e5645d4bc3f551593de7550bb66ab6e42bc
@@ -2250,7 +2258,7 @@ SPEC CHECKSUMS:
   React-mutationobservernativemodule: a42d1626651ccd7d0dc02a56e69d4ec77c248893
   react-native-safe-area-context: fb5c8ee9f6dd62ef710611b3d370c501f42a4ac0
   react-native-slider: 08ecfc4e9cc16cc388a56dd9caeca51b55cd9bb7
-  react-native-video: b7f39f100d08c9df0d0b396424c1a76427dff735
+  react-native-video: bd3e4e34543426e0294580b91fd9efcf2b8d2530
   React-NativeModulesApple: deba264b03bd79c6bd61014fa30e40321b5e443a
   React-networking: 35e6070b084f435429f85c5db40b4d5b38652fe9
   React-oscompat: 64a0c7ef5441855dc6e2a6afe8ba8f92aa05075e
@@ -2287,6 +2295,6 @@ SPEC CHECKSUMS:
   ReactNativeDependencies: 74544dc90b6663007d472c861dc900bac2a93f52
   Yoga: 77dfa8673de2874e1855002ae59c68b8be9b007b
 
-PODFILE CHECKSUM: 65123568587c676810627843588d1a243925f566
+PODFILE CHECKSUM: 8ae4d40bcaefcfcd5054f5ae046fa05209c7d8f8
 
 COCOAPODS: 1.16.2
