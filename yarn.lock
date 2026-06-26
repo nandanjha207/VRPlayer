@@ -1520,6 +1520,11 @@
     prompts "^2.4.2"
     semver "^7.5.2"
 
+"@react-native-community/netinfo@^11.4.1":
+  version "11.5.2"
+  resolved "https://registry.yarnpkg.com/@react-native-community/netinfo/-/netinfo-11.5.2.tgz#daf3bc1b5cf6e9fc6725600c9e95875b5e50e694"
+  integrity sha512-/g0m65BtX9HU+bPiCH2517bOHpEIUsGrWFXDzi1a5nNKn5KujQgm04WhL7/OSXWKHyrT8VVtUoJA0XKRxueBpQ==
+
 "@react-native-community/slider@^5.2.0":
   version "5.2.0"
   resolved "https://registry.npmjs.org/@react-native-community/slider/-/slider-5.2.0.tgz"
@@ -1757,6 +1762,11 @@
   integrity sha512-V4BG07kuYSUkTCSBHG8G8TNhM+F19jXFWnQtzj+we8DrkpSBCee9Z3Ms8yiGer/dlmhe35/Xdgyo3/0rQKg7YA==
   dependencies:
     "@sinonjs/commons" "^3.0.0"
+
+"@ttn/vr-rn-player-sdk@1.0.0":
+  version "1.0.0"
+  resolved "http://10.100.1.64:8081/repository/npm-local/@ttn/vr-rn-player-sdk/-/vr-rn-player-sdk-1.0.0.tgz#3fba0e33a2ce4d57a0549db191def316a5c2bd39"
+  integrity sha512-A8wBydMpfOvGl7pQl/8g45sG4j3jZpLm0urK0kooKys7xpTid2MTiS7FKDd9L8Y/5jRHfddX7niPFb2+Qr4T9w==
 
 "@types/babel__core@^7.1.14":
   version "7.20.5"
@@ -5363,14 +5373,15 @@ react-is@^19.2.3:
   resolved "https://registry.npmjs.org/react-is/-/react-is-19.2.7.tgz"
   integrity sha512-kZFnouyVv7eP/Phmrlo9FK+zcAdriZJvzxXHF1Sl1P377WSGe2G/JxVolhTrB/jeV47lKImhNUsijjHAAbcl/A==
 
+react-native-device-info@^14.0.4:
+  version "14.1.1"
+  resolved "https://registry.yarnpkg.com/react-native-device-info/-/react-native-device-info-14.1.1.tgz#f50c03902f87e4a99b1c51ed85163b795f02b3ea"
+  integrity sha512-lXFpe6DJmzbQXNLWxlMHP2xuTU5gwrKAvI8dCAZuERhW9eOXSubOQIesk9lIBnsi9pI19GMrcpJEvs4ARPRYmw==
+
 react-native-safe-area-context@^5.5.2:
   version "5.8.0"
   resolved "https://registry.npmjs.org/react-native-safe-area-context/-/react-native-safe-area-context-5.8.0.tgz"
   integrity sha512-t+ZsAVzY/wWzzx34vqGbo3/as9EEESJdbyZNL7Yg5EYX+toYMtMqFoDDCvqZUi35eeGVsXc6pAaEk4edMwbuCQ==
-
-"react-native-video@git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#spoTv/rn-player-conviva-removed":
-  version "6.14.0"
-  resolved "git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#7765bcde8a0b36d93fc760ce2e8118195acb7476"
 
 react-native@0.85.3:
   version "0.85.3"

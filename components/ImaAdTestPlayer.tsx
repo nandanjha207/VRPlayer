@@ -15,8 +15,8 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
-import type {OnReceiveAdEventData, ReactVideoSource} from 'react-native-video';
-import {AdEvent} from 'react-native-video';
+import type {OnReceiveAdEventData, ReactVideoSource} from '@ttn/vr-rn-player-sdk';
+import {AdEvent} from '@ttn/vr-rn-player-sdk';
 import {
   GOOGLE_IMA_SAMPLE_CONTENT_URI,
   GOOGLE_IMA_TEST_PRESETS,

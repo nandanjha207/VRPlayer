@@ -24,8 +24,10 @@ import {
   SelectedTrackType,
   SelectedVideoTrackType,
   type Drm,
+  type OnAudioTracksData,
   type OnBufferData,
   type OnLoadData,
+  type OnLoadStartData,
   type OnProgressData,
   type OnTextTracksData,
   type OnVideoErrorData,
@@ -34,7 +36,7 @@ import {
   type SelectedVideoTrack,
   type TextTracks,
   type VideoRef,
-} from 'react-native-video';
+} from '@ttn/vr-rn-player-sdk';
 import {CURATED_PLAYLIST} from './curatedPlaylist';
 import {type CatalogStreamItem} from './exoListParser';
 import {inferManifestKind} from './manifestQualities';
@@ -51,12 +53,15 @@ import {
 } from './thumbnailStoryboardVtt';
 import {prepareVideoTracksForQualityUi} from './videoTrackQualityMenu';
 import {VideoPlayer} from './videoFork';
+import {StatsForNerdsOverlay} from './StatsForNerdsOverlay';
+import {useStatsForNerds} from './useStatsForNerds';
 
 const SEEK_STEP_SECONDS = 10;
 const VIDEO_HORIZONTAL_PADDING = 24;
 const VIDEO_ASPECT_RATIO = 16 / 9;
 const PLAYBACK_RATES = [0.5, 1, 1.25, 1.5, 2] as const;
 const OVERLAY_HIDE_MS = 4500;
+const STATS_TAP_WINDOW_MS = 450;
 /** Scrub tooltip: width used for horizontal clamping above the seek bar. */
 const SCRUB_PREVIEW_WIDTH = 96;
 const SCRUB_PREVIEW_HEIGHT = 54;
@@ -300,6 +305,8 @@ export function MediaCatalogPlayer() {
   const hideOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const statsTapCountRef = useRef(0);
+  const statsTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [paused, setPaused] = useState(true);
   const [isContentPlaying, setIsContentPlaying] = useState(false);
@@ -361,6 +368,7 @@ export function MediaCatalogPlayer() {
     'none' | 'settings' | 'speed' | 'quality' | 'textAudio'
   >('none');
   const [lastError, setLastError] = useState<string | null>(null);
+  const [statsVisible, setStatsVisible] = useState(false);
 
   useEffect(() => {
     durationRef.current = duration;
@@ -507,6 +515,8 @@ export function MediaCatalogPlayer() {
     );
   }, [selectedItem, playbackUri, activeSubtitlePreset]);
 
+  const {stats, videoCallbacks} = useStatsForNerds(videoSource);
+
   const releaseSeekLock = useCallback(() => {
     if (seekReleaseTimerRef.current) {
       clearTimeout(seekReleaseTimerRef.current);
@@ -550,11 +560,28 @@ export function MediaCatalogPlayer() {
     scheduleHideOverlay();
   }, [scheduleHideOverlay]);
 
+  const handleStatsTripleTap = useCallback(() => {
+    statsTapCountRef.current += 1;
+    if (statsTapTimerRef.current) {
+      clearTimeout(statsTapTimerRef.current);
+    }
+    statsTapTimerRef.current = setTimeout(() => {
+      if (statsTapCountRef.current >= 3) {
+        setStatsVisible(visible => !visible);
+      }
+      statsTapCountRef.current = 0;
+      statsTapTimerRef.current = null;
+    }, STATS_TAP_WINDOW_MS);
+  }, []);
+
   useEffect(() => {
     showOverlay();
     return () => {
       if (hideOverlayTimerRef.current) {
         clearTimeout(hideOverlayTimerRef.current);
+      }
+      if (statsTapTimerRef.current) {
+        clearTimeout(statsTapTimerRef.current);
       }
     };
   }, [selectedId, showOverlay]);
@@ -590,38 +617,21 @@ export function MediaCatalogPlayer() {
     return () => sub.remove();
   }, [resumePlaybackAfterForeground]);
 
-  const handleLoad = useCallback((data: OnLoadData) => {
-    setDuration(data.duration);
-    setCurrentTime(data.currentTime);
-    currentTimeRef.current = data.currentTime;
-    setSeekSliderValue(data.currentTime);
-    setHasEnded(false);
-    setIsBuffering(false);
-    if (data.textTracks?.length) {
-      setAvailableTextTracks(data.textTracks);
-    }
-    if (data.audioTracks?.length) {
-      setAvailableAudioTracks(data.audioTracks);
-    }
-    if (data.videoTracks !== undefined) {
-      if (data.videoTracks.length > 0) {
-        setAvailableVideoTracks(
-          prepareVideoTracksForQualityUi(data.videoTracks),
-        );
-      } else {
-        setAvailableVideoTracks([]);
+  const handleLoad = useCallback(
+    (data: OnLoadData) => {
+      videoCallbacks.onLoad(data);
+      setDuration(data.duration);
+      setCurrentTime(data.currentTime);
+      currentTimeRef.current = data.currentTime;
+      setSeekSliderValue(data.currentTime);
+      setHasEnded(false);
+      setIsBuffering(false);
+      if (data.textTracks?.length) {
+        setAvailableTextTracks(data.textTracks);
       }
-    }
-  }, []);
-
-  const handleTextTracks = useCallback((data: OnTextTracksData) => {
-    if (data.textTracks?.length) {
-      setAvailableTextTracks(data.textTracks as OnLoadData['textTracks']);
-    }
-  }, []);
-
-  const handleVideoTracks = useCallback(
-    (data: {videoTracks: OnLoadData['videoTracks']}) => {
+      if (data.audioTracks?.length) {
+        setAvailableAudioTracks(data.audioTracks);
+      }
       if (data.videoTracks !== undefined) {
         if (data.videoTracks.length > 0) {
           setAvailableVideoTracks(
@@ -632,11 +642,55 @@ export function MediaCatalogPlayer() {
         }
       }
     },
-    [],
+    [videoCallbacks],
+  );
+
+  const handleLoadStart = useCallback(
+    (data: OnLoadStartData) => {
+      videoCallbacks.onLoadStart(data);
+    },
+    [videoCallbacks],
+  );
+
+  const handleAudioTracks = useCallback(
+    (data: OnAudioTracksData) => {
+      videoCallbacks.onAudioTracks(data);
+      if (data.audioTracks?.length) {
+        setAvailableAudioTracks(data.audioTracks);
+      }
+    },
+    [videoCallbacks],
+  );
+
+  const handleTextTracks = useCallback(
+    (data: OnTextTracksData) => {
+      videoCallbacks.onTextTracks(data);
+      if (data.textTracks?.length) {
+        setAvailableTextTracks(data.textTracks as OnLoadData['textTracks']);
+      }
+    },
+    [videoCallbacks],
+  );
+
+  const handleVideoTracks = useCallback(
+    (data: {videoTracks: OnLoadData['videoTracks']}) => {
+      videoCallbacks.onVideoTracks(data);
+      if (data.videoTracks !== undefined) {
+        if (data.videoTracks.length > 0) {
+          setAvailableVideoTracks(
+            prepareVideoTracksForQualityUi(data.videoTracks),
+          );
+        } else {
+          setAvailableVideoTracks([]);
+        }
+      }
+    },
+    [videoCallbacks],
   );
 
   const handleProgress = useCallback(
     (data: OnProgressData) => {
+      videoCallbacks.onProgress(data);
       if (isSeekingRef.current) {
         const target = seekTargetRef.current;
         if (
@@ -652,12 +706,16 @@ export function MediaCatalogPlayer() {
       currentTimeRef.current = data.currentTime;
       setSeekSliderValue(data.currentTime);
     },
-    [releaseSeekLock],
+    [releaseSeekLock, videoCallbacks],
   );
 
-  const handleBuffer = useCallback((data: OnBufferData) => {
-    setIsBuffering(data.isBuffering);
-  }, []);
+  const handleBuffer = useCallback(
+    (data: OnBufferData) => {
+      videoCallbacks.onBuffer(data);
+      setIsBuffering(data.isBuffering);
+    },
+    [videoCallbacks],
+  );
 
   const handleError = useCallback((e: OnVideoErrorData) => {
     const msg =
@@ -959,15 +1017,30 @@ export function MediaCatalogPlayer() {
               playWhenInactive={false}
               useTextureView={false}
               progressUpdateInterval={250}
+              reportBandwidth={videoCallbacks.reportBandwidth}
+              onLoadStart={handleLoadStart}
               onLoad={handleLoad}
               onProgress={handleProgress}
               onBuffer={handleBuffer}
+              onPlaybackStateChanged={videoCallbacks.onPlaybackStateChanged}
+              onBandwidthUpdate={videoCallbacks.onBandwidthUpdate}
+              onExternalPlaybackChange={
+                videoCallbacks.onExternalPlaybackChange
+              }
               onEnd={handleEnd}
               onError={handleError}
+              onAudioTracks={handleAudioTracks}
               onTextTracks={handleTextTracks}
+              onTextTrackDataChanged={videoCallbacks.onTextTrackDataChanged}
               onVideoTracks={handleVideoTracks}
               onFullscreenPlayerDidPresent={() => setIsFullscreen(true)}
               onFullscreenPlayerDidDismiss={() => setIsFullscreen(false)}
+            />
+            <StatsForNerdsOverlay visible={statsVisible} stats={stats} />
+            <Pressable
+              style={styles.statsTapZone}
+              onPress={handleStatsTripleTap}
+              accessibilityLabel="Stats for nerds toggle"
             />
           </View>
         ) : (
@@ -1410,6 +1483,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  statsTapZone: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 72,
+    height: 72,
+    zIndex: 30,
   },
   placeholder: {
     alignItems: 'center',
