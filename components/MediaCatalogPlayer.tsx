@@ -52,6 +52,7 @@ import {
   type ParsedStoryboardCue,
 } from './thumbnailStoryboardVtt';
 import {prepareVideoTracksForQualityUi} from './videoTrackQualityMenu';
+import {AirPlayRoutePickerButton} from './AirPlayRoutePickerButton';
 import {VideoPlayer} from './videoFork';
 import {StatsForNerdsOverlay} from './StatsForNerdsOverlay';
 import {useStatsForNerds} from './useStatsForNerds';
@@ -1013,6 +1014,7 @@ export function MediaCatalogPlayer() {
               selectedVideoTrack={selectedVideoTrackProp}
               subtitleStyle={subtitleVideoStyle}
               controls={false}
+              allowsExternalPlayback={true}
               playInBackground={false}
               playWhenInactive={false}
               useTextureView={false}
@@ -1090,6 +1092,9 @@ export function MediaCatalogPlayer() {
                   }}>
                   <Text style={styles.iconGlyph}>⏱</Text>
                 </Pressable>
+                <View style={styles.iconHit}>
+                  <AirPlayRoutePickerButton />
+                </View>
                 {showQualityControl ? (
                   <Pressable
                     style={styles.iconHit}
