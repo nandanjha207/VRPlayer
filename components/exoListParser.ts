@@ -42,6 +42,8 @@ export type CatalogStreamItem = {
   fairPlayCustomData?: string;
   /** Optional; derived from `skd://` in manifest when omitted. */
   fairPlayContentId?: string;
+  /** Selects custom JS license exchange when native `skd://` routing is insufficient. */
+  fairPlayLicenseHandler?: 'keyos' | 'brightcove';
   /** Optional poster / thumbnail for playlist row. */
   thumbnailUri?: string;
   /**

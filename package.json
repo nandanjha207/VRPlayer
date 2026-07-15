@@ -15,7 +15,7 @@
     "react": "19.2.3",
     "react-native": "0.85.3",
     "react-native-safe-area-context": "^5.5.2",
-    "react-native-video": "git+ssh://git@gitlab.intelligrape.net:vr2-implementations/astro/frontend/react-native-player#spoTv/rn-player-conviva-removed"
+    "@ttn/vr-rn-player-sdk": "file:/Users/nandankumar/Downloads/VRPlayer_withoutConviva/ttn-vr-rn-player-sdk-1.0.1.tgz"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

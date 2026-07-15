@@ -34,7 +34,7 @@ import {
   type SelectedVideoTrack,
   type TextTracks,
   type VideoRef,
-} from 'react-native-video';
+} from '@ttn/vr-rn-player-sdk';
 import {CURATED_PLAYLIST} from './curatedPlaylist';
 import {type CatalogStreamItem} from './exoListParser';
 import {inferManifestKind} from './manifestQualities';
@@ -49,6 +49,11 @@ import {
   parseThumbnailStoryboardVtt,
   type ParsedStoryboardCue,
 } from './thumbnailStoryboardVtt';
+import {
+  fetchBrightcoveFairPlayLicense,
+  fetchKeyOsFairPlayLicense,
+  resolveFairPlayLicenseEndpoint,
+} from './fairPlayLicense';
 import {prepareVideoTracksForQualityUi} from './videoTrackQualityMenu';
 import {VideoPlayer} from './videoFork';
 
@@ -103,38 +108,36 @@ function buildDrmConfig(item: CatalogStreamItem): Drm | undefined {
     const licenseServer = item.drmLicenseUri;
     const certificateUrl = item.fairPlayCertificateUrl;
     const customData = item.fairPlayCustomData;
+    const licenseHandler =
+      item.fairPlayLicenseHandler ?? (customData ? 'keyos' : undefined);
     if (!licenseServer || !certificateUrl) {
       return undefined;
     }
+
+    const getLicense =
+      licenseHandler === 'brightcove'
+        ? (spcBase64: string, contentId: string, licenseUrl: string) =>
+            fetchBrightcoveFairPlayLicense(
+              spcBase64,
+              resolveFairPlayLicenseEndpoint(licenseUrl, licenseServer),
+              contentId,
+            )
+        : licenseHandler === 'keyos' && customData
+          ? (spcBase64: string, contentId: string, licenseUrl: string) =>
+              fetchKeyOsFairPlayLicense(
+                spcBase64,
+                contentId,
+                resolveFairPlayLicenseEndpoint(licenseUrl, licenseServer),
+                customData,
+              )
+          : undefined;
+
     return {
       type: DRMType.FAIRPLAY,
       licenseServer,
       certificateUrl,
       contentId: item.fairPlayContentId,
-      ...(customData
-        ? {
-            getLicense: (
-              spcBase64: string,
-              contentId: string,
-              licenseUrl: string,
-            ) =>
-              fetch(licenseUrl || licenseServer, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/x-www-form-urlencoded',
-                  customdata: customData,
-                },
-                body: `spc=${encodeURIComponent(spcBase64)}&assetId=${encodeURIComponent(contentId)}`,
-              }).then(response => {
-                if (!response.ok) {
-                  throw new Error(
-                    `KeyOS license HTTP ${response.status}: ${response.statusText}`,
-                  );
-                }
-                return response.text();
-              }),
-          }
-        : {}),
+      ...(getLicense ? {getLicense} : {}),
     };
   }
 

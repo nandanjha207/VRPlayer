@@ -3,7 +3,7 @@ import {
   prepareVideoTracksForQualityUi,
   sortVideoTracksByQuality,
 } from '../components/videoTrackQualityMenu';
-import type {OnLoadData} from 'react-native-video';
+import type {OnLoadData} from '@ttn/vr-rn-player-sdk';
 
 type VT = OnLoadData['videoTracks'][number];
 

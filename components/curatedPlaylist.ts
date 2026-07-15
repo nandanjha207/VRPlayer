@@ -66,6 +66,14 @@ const SHAKA_ANGEL_ONE_HLS =
 const SHAKA_FP_CERT = 'https://cwip-shaka-proxy.appspot.com/fps_certificate';
 const SHAKA_FP_LICENSE = 'https://cwip-shaka-proxy.appspot.com/no_auth';
 
+/** Brightcove Live FairPlay (tokenized cert + license URLs). */
+const BRIGHTCOVE_LIVE_HLS =
+  'https://fastly.live.brightcove.com/6387929198112/ap-southeast-1/6271486521001/eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJob3N0Ijoid29ocXRqLmVncmVzcy5wcHRpOHciLCJhY2NvdW50X2lkIjoiNjI3MTQ4NjUyMTAwMSIsImVobiI6ImZhc3RseS5saXZlLmJyaWdodGNvdmUuY29tIiwiaXNzIjoiYmxpdmUtcGxheWJhY2stc291cmNlLWFwaSIsInN1YiI6InBhdGhtYXB0b2tlbiIsImF1ZCI6WyI2MjcxNDg2NTIxMDAxIl0sImp0aSI6IjYzODc5MjkxOTgxMTIifQ.TNO-Uq2c4NEHQCD1vzs1wN5nMIxqbUqas6OIo4aK4fM/playlist-hls.m3u8';
+const BRIGHTCOVE_FP_CERT =
+  'https://license.live.brightcove.com/cert/fp?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJicmlnaHRjb3ZlL2xpdmUvdjIvbGljZW5jZS1hcGkiLCJleHAiOjE3ODQwNjY5NTEsImp0aSI6IjAzNTYwZTcyLTU0OGMtNGZhMy1hZTg0LWM4NmI3MDc3ZTMwNiIsImlhdCI6MTc4NDAyMzc1MSwiaXNzIjoiYnJpZ2h0Y292ZS9saXZlL3YyL3BsYXliYWNrLW1hbmFnZW1lbnQtYXBpIiwibmJmIjoxNzg0MDIzNzUxLCJzdWIiOiI2Mzg3OTI5MTk4MTEyIiwiYWNjb3VudCI6ImJyaWdodGNvdmVfNjI3MTQ4NjUyMTAwMSIsInBsYXlsaXN0IjoiIiwib3B0aW9ucyI6W10sImNydCI6eyJtZXNzYWdlIjoiTGljZW5zZSBncmFudGVkIiwib3AiOnsiY29uZmlnIjp7IkFVRElPIjp7IkZhaXJQbGF5Ijp7InJlcXVpcmVIRENQIjoiSERDUF9OT05FIn0sIlBsYXlSZWFkeSI6eyJyZXF1aXJlSERDUCI6IkhEQ1BfTk9ORSJ9LCJXaWRldmluZU0iOnsicmVxdWlyZUhEQ1AiOiJIRENQX05PTkUifX0sIkhEIjp7IkZhaXJQbGF5Ijp7InJlcXVpcmVIRENQIjoiSERDUF9OT05FIn0sIlBsYXlSZWFkeSI6eyJyZXF1aXJlSERDUCI6IkhEQ1BfTk9ORSJ9LCJXaWRldmluZU0iOnsicmVxdWlyZUhEQ1AiOiJIRENQX05PTkUifX0sIlNEIjp7IkZhaXJQbGF5Ijp7InJlcXVpcmVIRENQIjoiSERDUF9OT05FIn0sIlBsYXlSZWFkeSI6eyJyZXF1aXJlSERDUCI6IkhEQ1BfTk9ORSJ9LCJXaWRldmluZU0iOnsicmVxdWlyZUhEQ1AiOiJIRENQX05PTkUifX0sIlVIRCI6eyJGYWlyUGxheSI6eyJyZXF1aXJlSERDUCI6IkhEQ1BfTk9ORSJ9LCJQbGF5UmVhZHkiOnsicmVxdWlyZUhEQ1AiOiJIRENQX05PTkUifSwiV2lkZXZpbmVNIjp7InJlcXVpcmVIRENQIjoiSERDUF9OT05FIn19fX0sIm91dHB1dFByb3RlY3Rpb24iOnsiYW5hbG9ndWUiOnRydWUsImRpZ2l0YWwiOnRydWUsImVuZm9yY2UiOmZhbHNlfSwicHJvZmlsZSI6eyJwdXJjaGFzZSI6e319LCJzdG9yZUxpY2Vuc2UiOmZhbHNlfSwicmVmZXJlciI6IiIsImFjY2lkIjoiNjI3MTQ4NjUyMTAwMSIsInZpZCI6IjYzODc5MjkxOTgxMTIiLCJwYXQiOiIifQ.-QiWRQhu5HmVS7bD6UYHy6RDWwlVDIYhASJwCUda0MY';
+const BRIGHTCOVE_FP_LICENSE =
+  'https://license.live.brightcove.com/lic/fp?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJicmlnaHRjb3ZlL2xpdmUvdjIvbGljZW5jZS1hcGkiLCJleHAiOjE3ODQwNjY5NTEsImp0aSI6IjAzNTYwZTcyLTU0OGMtNGZhMy1hZTg0LWM4NmI3MDc3ZTMwNiIsImlhdCI6MTc4NDAyMzc1MSwiaXNzIjoiYnJpZ2h0Y292ZS9saXZlL3YyL3BsYXliYWNrLW1hbmFnZW1lbnQtYXBpIiwibmJmIjoxNzg0MDIzNzUxLCJzdWIiOiI2Mzg3OTI5MTk4MTEyIiwiYWNjb3VudCI6ImJyaWdodGNvdmVfNjI3MTQ4NjUyMTAwMSIsInBsYXlsaXN0IjoiIiwib3B0aW9ucyI6W10sImNydCI6eyJtZXNzYWdlIjoiTGljZW5zZSBncmFudGVkIiwib3AiOnsiY29uZmlnIjp7IkFVRElPIjp7IkZhaXJQbGF5Ijp7InJlcXVpcmVIRENQIjoiSERDUF9OT05FIn0sIlBsYXlSZWFkeSI6eyJyZXF1aXJlSERDUCI6IkhEQ1BfTk9ORSJ9LCJXaWRldmluZU0iOnsicmVxdWlyZUhEQ1AiOiJIRENQX05PTkUifX0sIkhEIjp7IkZhaXJQbGF5Ijp7InJlcXVpcmVIRENQIjoiSERDUF9OT05FIn0sIlBsYXlSZWFkeSI6eyJyZXF1aXJlSERDUCI6IkhEQ1BfTk9ORSJ9LCJXaWRldmluZU0iOnsicmVxdWlyZUhEQ1AiOiJIRENQX05PTkUifX0sIlNEIjp7IkZhaXJQbGF5Ijp7InJlcXVpcmVIRENQIjoiSERDUF9OT05FIn0sIlBsYXlSZWFkeSI6eyJyZXF1aXJlSERDUCI6IkhEQ1BfTk9ORSJ9LCJXaWRldmluZU0iOnsicmVxdWlyZUhEQ1AiOiJIRENQX05PTkUifX0sIlVIRCI6eyJGYWlyUGxheSI6eyJyZXF1aXJlSERDUCI6IkhEQ1BfTk9ORSJ9LCJQbGF5UmVhZHkiOnsicmVxdWlyZUhEQ1AiOiJIRENQX05PTkUifSwiV2lkZXZpbmVNIjp7InJlcXVpcmVIRENQIjoiSERDUF9OT05FIn19fX0sIm91dHB1dFByb3RlY3Rpb24iOnsiYW5hbG9ndWUiOnRydWUsImRpZ2l0YWwiOnRydWUsImVuZm9yY2UiOmZhbHNlfSwicHJvZmlsZSI6eyJwdXJjaGFzZSI6e319LCJzdG9yZUxpY2Vuc2UiOmZhbHNlfSwicmVmZXJlciI6IiIsImFjY2lkIjoiNjI3MTQ4NjUyMTAwMSIsInZpZCI6IjYzODc5MjkxOTgxMTIiLCJwYXQiOiIifQ.-QiWRQhu5HmVS7bD6UYHy6RDWwlVDIYhASJwCUda0MY';
+
 /** Playlist row posters (direct image URLs — avoid Wikimedia /thumb/ size limits). */
 const THUMB_BIG_BUCK_BUNNY =
   'https://peach.blender.org/wp-content/uploads/title_anouncement.jpg';
@@ -196,7 +204,22 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
           ? 'FairPlay — iOS physical device only (not simulator).'
           : 'Shaka demo cert + license. Use real iPhone; try this before KeyOS.',
     },
-    
+    {
+      category: 'DRM – FairPlay (iOS test)',
+      title: 'HLS – Brightcove Live (FairPlay)',
+      uri: BRIGHTCOVE_LIVE_HLS,
+      thumbnailUri: THUMB_TEARS,
+      drmScheme: 'fairplay',
+      drmLicenseUri: BRIGHTCOVE_FP_LICENSE,
+      fairPlayCertificateUrl: BRIGHTCOVE_FP_CERT,
+      fairPlayLicenseHandler: 'brightcove',
+      tags: ['drm', 'live'],
+      playable: Platform.OS === 'ios',
+      unsupportedHint:
+        Platform.OS === 'android'
+          ? 'FairPlay — iOS physical device only (not simulator).'
+          : 'Brightcove Live: custom JSON license POST. Use a real iPhone; refresh JWT URLs when expired.',
+    },
   ];
 
   // {
