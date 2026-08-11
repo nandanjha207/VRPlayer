@@ -6,6 +6,8 @@ buildscript {
         targetSdkVersion = 36
         ndkVersion = "27.1.12297006"
         kotlinVersion = "2.1.20"
+        // Avoid Android Studio spawning `node` for netinfo RN path resolution (no nvm on PATH).
+        REACT_NATIVE_NODE_MODULES_DIR = file("${rootDir}/../node_modules/react-native").absolutePath
         // react-native-video: bundle media3-exoplayer-ima + set USE_EXOPLAYER_IMA (required for source.ad on Android)
         useExoplayerIMA = true
     }

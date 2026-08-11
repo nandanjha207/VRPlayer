@@ -10,6 +10,8 @@ prepare_react_native_project!
 
 # react-native-video: link Google IMA iOS SDK + USE_GOOGLE_IMA (required for client-side ads / source.ad)
 $RNVideoUseGoogleIMA = true
+# react-native-video: Google Cast SDK + VR Cast receiver (41A25E4F)
+$RNVideoUseGoogleCast = true
 
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil

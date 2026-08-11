@@ -21,7 +21,7 @@ import type {
   OnTextTracksData,
   OnVideoTracksData,
   ReactVideoSource,
-} from '@ttn/vr-rn-player-sdk';
+} from 'react-native-video';
 
 export type StatsSource = 'SDK' | 'Device';
 

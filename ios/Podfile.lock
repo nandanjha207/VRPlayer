@@ -1,5 +1,6 @@
 PODS:
   - FBLazyVector (0.85.3)
+  - google-cast-sdk (4.8.4)
   - GoogleAds-IMA-iOS-SDK (3.23.0)
   - hermes-engine (250829098.0.10):
     - hermes-engine/Pre-built (= 250829098.0.10)
@@ -1539,7 +1540,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-video (1.0.0):
+  - react-native-video (1.0.1):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1551,7 +1552,7 @@ PODS:
     - React-graphics
     - React-ImageManager
     - React-jsi
-    - react-native-video/Video (= 1.0.0)
+    - react-native-video/Video (= 1.0.1)
     - React-NativeModulesApple
     - React-RCTFabric
     - React-renderercss
@@ -1562,7 +1563,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-video/Fabric (1.0.0):
+  - react-native-video/Fabric (1.0.1):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1584,7 +1585,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-video/Video (1.0.0):
+  - react-native-video/Video (1.0.1):
+    - google-cast-sdk (~> 4.8.4)
     - GoogleAds-IMA-iOS-SDK (~> 3.23.0)
     - GoogleAds-IMA-tvOS-SDK (~> 4.2)
     - hermes-engine
@@ -2042,7 +2044,7 @@ DEPENDENCIES:
   - "react-native-netinfo (from `../node_modules/@react-native-community/netinfo`)"
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
-  - "react-native-video (from `../node_modules/@ttn/vr-rn-player-sdk`)"
+  - react-native-video (from `../node_modules/react-native-video`)
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
@@ -2082,6 +2084,7 @@ DEPENDENCIES:
 
 SPEC REPOS:
   trunk:
+    - google-cast-sdk
     - GoogleAds-IMA-iOS-SDK
 
 EXTERNAL SOURCES:
@@ -2171,7 +2174,7 @@ EXTERNAL SOURCES:
   react-native-slider:
     :path: "../node_modules/@react-native-community/slider"
   react-native-video:
-    :path: "../node_modules/@ttn/vr-rn-player-sdk"
+    :path: "../node_modules/react-native-video"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-networking:
@@ -2247,6 +2250,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   FBLazyVector: 24e62c765683b8d89006a88a2c8f5cf019f0074d
+  google-cast-sdk: 32f65af50d164e3c475e79ad123db3cc26fbcd37
   GoogleAds-IMA-iOS-SDK: ee2a68ed7a1a17c7bb81bdb1b81590b35a3fc8f3
   hermes-engine: d3f2815f1e0be1e118026920cab2f5229a4e3273
   RCTDeprecation: a4c521821fab57cbb125b36effe84d897d0dfa12
@@ -2289,7 +2293,7 @@ SPEC CHECKSUMS:
   react-native-netinfo: 4319d381f35bc11b53dafebd5cd99c04c66a9fb4
   react-native-safe-area-context: fb5c8ee9f6dd62ef710611b3d370c501f42a4ac0
   react-native-slider: 08ecfc4e9cc16cc388a56dd9caeca51b55cd9bb7
-  react-native-video: 8b3738adcbc34656c95439278038e4bd78e4554c
+  react-native-video: 8b0b0a05e42a9b65f4a74bb9441ee258bdc83206
   React-NativeModulesApple: deba264b03bd79c6bd61014fa30e40321b5e443a
   React-networking: 35e6070b084f435429f85c5db40b4d5b38652fe9
   React-oscompat: 64a0c7ef5441855dc6e2a6afe8ba8f92aa05075e
@@ -2327,6 +2331,6 @@ SPEC CHECKSUMS:
   RNDeviceInfo: bcce8752b5043a623fe3c26789679b473f705d3c
   Yoga: 77dfa8673de2874e1855002ae59c68b8be9b007b
 
-PODFILE CHECKSUM: 8ae4d40bcaefcfcd5054f5ae046fa05209c7d8f8
+PODFILE CHECKSUM: 9a8bee7b948b911529358f64a677a8c5c4054bd3
 
 COCOAPODS: 1.16.2

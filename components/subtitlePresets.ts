@@ -1,5 +1,5 @@
-import {TextTrackType} from '@ttn/vr-rn-player-sdk';
-import type {TextTracks} from '@ttn/vr-rn-player-sdk';
+import {TextTrackType} from 'react-native-video';
+import type {TextTracks} from 'react-native-video';
 
 /** ExoPlayer demo list (media.exolist.json) subtitle samples for QA. */
 export type SubtitlePreset = {

@@ -24,8 +24,24 @@ react {
     // debuggableVariants = ["liteDebug", "liteDebugOptimized", "prodDebug", "prodDebugOptimized"]
 
     /* Bundling */
-    //   A list containing the node command and its flags. Default is just 'node'.
-    // nodeExecutableAndArgs = ["node"]
+    // Absolute node path — Android Studio Gradle does not inherit nvm PATH.
+    nodeExecutableAndArgs = {
+        def local = new Properties()
+        def localFile = rootProject.file("local.properties")
+        if (localFile.exists()) {
+            localFile.withInputStream { local.load(it) }
+        }
+        def candidates = [
+            System.getenv("NODE_BINARY"),
+            local.getProperty("nodejs.executable"),
+            "${System.getProperty('user.home')}/.nvm/versions/node/v22.22.2/bin/node",
+            "${System.getProperty('user.home')}/.nvm/versions/node/v20.20.2/bin/node",
+            "/opt/homebrew/bin/node",
+            "/usr/local/bin/node",
+        ].findAll { it != null && !it.toString().trim().isEmpty() }
+        def found = candidates.find { new File(it.toString()).exists() }
+        return found != null ? [found.toString()] : ["node"]
+    }()
     //
     //   The command to run when bundling. By default is 'bundle'
     // bundleCommand = "ram-bundle"
@@ -110,6 +126,10 @@ android {
 dependencies {
     // The version of react-native is set by the React Native Gradle Plugin
     implementation("com.facebook.react:react-android")
+
+    // Cast dialog fallback (matches react-native-video SDK versions)
+    implementation("com.google.android.gms:play-services-cast-framework:21.5.0")
+    implementation("androidx.mediarouter:mediarouter:1.7.0")
 
     if (hermesEnabled.toBoolean()) {
         implementation("com.facebook.react:hermes-android")

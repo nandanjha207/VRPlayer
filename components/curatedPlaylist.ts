@@ -50,6 +50,9 @@ const MP4_BIG_BUCK_BUNNY =
 
 const MP4_ONE_HR =
   'https://storage.googleapis.com/exoplayer-test-media-1/mp4/frame-counter-one-hour.mp4';
+/** Cast QA: clear HLS live (Amagi / Gusto) — Chromecast-friendly. */
+const HLS_GUSTO_TV =
+  'https://cdn-apse1-prod.tsv2.amagi.tv/linear/amg01077-gustoworldwidem-gustotv-hls-sooka/playlist.m3u8';
 const HLS_LIVE_FORSTREET = 'https://live.forstreet.cl/live/livestream.m3u8';
 /** Forstreet CDN returns 400 for ExoPlayer / AVPlayer UAs — browser UA required. */
 const BROWSER_USER_AGENT =
@@ -100,6 +103,30 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
       playable: true,
     },
     {
+      category: 'Cast QA',
+      title: 'HLS live – Gusto TV (clear, Chromecast)',
+      uri: HLS_GUSTO_TV,
+      thumbnailUri: THUMB_BIG_BUCK_BUNNY,
+      tags: ['clear', 'live'],
+      playable: true,
+      unsupportedHint:
+        'Non-DRM HLS live for Chromecast testing (matches SDK example).',
+    },
+    {
+      category: 'Cast QA',
+      title: 'DASH – WV Tears cenc (Widevine, Chromecast)',
+      uri: WV_TEARS_MANIFEST,
+      thumbnailUri: THUMB_TEARS,
+      drmScheme: 'widevine',
+      drmLicenseUri: WV_LICENSE_DEFAULT,
+      tags: ['drm'],
+      playable: Platform.OS === 'android',
+      unsupportedHint:
+        Platform.OS === 'ios'
+          ? 'Widevine Cast DRM — Android only.'
+          : 'Widevine DASH cenc — matches SDK / web Cast DRM test asset.',
+    },
+    {
       category: 'Ads (IMA)',
       title: 'IMA sample content + Google linear preroll (MKV Android / MP4 iOS)',
       uri: GOOGLE_IMA_SAMPLE_CONTENT_URI,
@@ -135,6 +162,8 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
       thumbnailUri: THUMB_BIPBOP,
       tags: ['clear'],
       playable: true,
+      unsupportedHint:
+        'Cast QA: multi-variant VOD master may stall on VR receiver (41A25E4F). Seek to 0 before Cast, or test Live HLS rows.',
     },
     {
       category: 'HLS (clear)',

@@ -1,0 +1,28 @@
+diff --git a/node_modules/@react-native-community/netinfo/android/build.gradle b/node_modules/@react-native-community/netinfo/android/build.gradle
+index d5fda29..194f4fa 100644
+--- a/node_modules/@react-native-community/netinfo/android/build.gradle
++++ b/node_modules/@react-native-community/netinfo/android/build.gradle
+@@ -115,17 +115,12 @@ android {
+ 
+ repositories {
+   maven {
+-    // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm
+-
+-    // Use node resolver to locate react-native package
+-    def reactNativePackage = file(["node", "--print", "require.resolve('react-native/package.json')"].execute(null, rootDir).text.trim())
+-    if (reactNativePackage.exists()) {
+-      url "$reactNativePackage.parentFile/android"
+-    }
+-    // Fallback to react-native package colocated in node_modules
+-    else {
+-      url "$rootDir/../node_modules/react-native/android"
+-    }
++    // All of React Native (JS, Obj-C sources, Android binaries) is installed from npm.
++    // Prefer explicit path so Android Studio Gradle works without `node` on PATH (nvm).
++    def reactNativeLocation = rootProject.ext.has("REACT_NATIVE_NODE_MODULES_DIR")
++        ? file(rootProject.ext.get("REACT_NATIVE_NODE_MODULES_DIR"))
++        : file("$rootDir/../node_modules/react-native")
++    url "$reactNativeLocation/android"
+   }
+   google()
+   mavenLocal()

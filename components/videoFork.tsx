@@ -2,7 +2,7 @@
  * SpoTV / custom fork exposes `isContentPlaying` on native Video; upstream typings omit it.
  */
 import React, {type ComponentProps} from 'react';
-import Video from '@ttn/vr-rn-player-sdk';
+import Video from 'react-native-video';
 
 export type VideoForkProps = ComponentProps<typeof Video> & {
   isContentPlaying?: boolean;

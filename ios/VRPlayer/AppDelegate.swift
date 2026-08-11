@@ -2,6 +2,7 @@ import UIKit
 import React
 import React_RCTAppDelegate
 import ReactAppDependencyProvider
+import GoogleCast
 
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -22,6 +23,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     reactNativeFactory = factory
 
     window = UIWindow(frame: UIScreen.main.bounds)
+
+    if !GCKCastContext.isSharedInstanceInitialized() {
+      let criteria = GCKDiscoveryCriteria(applicationID: "41A25E4F")
+      let options = GCKCastOptions(discoveryCriteria: criteria)
+      options.startDiscoveryAfterFirstTapOnCastButton = false
+      GCKCastContext.setSharedInstanceWith(options)
+      GCKCastContext.sharedInstance().discoveryManager.startDiscovery()
+    }
 
     factory.startReactNative(
       withModuleName: "VRPlayer",

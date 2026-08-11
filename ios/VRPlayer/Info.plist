@@ -35,6 +35,13 @@
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string></string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>VRPlayer uses the local network to discover Google Cast devices on your Wi-Fi network.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_googlecast._tcp</string>
+		<string>_41A25E4F._googlecast._tcp</string>
+	</array>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

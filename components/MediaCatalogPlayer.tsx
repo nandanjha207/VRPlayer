@@ -35,8 +35,11 @@ import {
   type SelectedTrack,
   type SelectedVideoTrack,
   type TextTracks,
+  type OnGoogleCastEventData,
   type VideoRef,
-} from '@ttn/vr-rn-player-sdk';
+  GoogleCastButton,
+  CastEvent,
+} from 'react-native-video';
 import {CURATED_PLAYLIST} from './curatedPlaylist';
 import {type CatalogStreamItem} from './exoListParser';
 import {inferManifestKind} from './manifestQualities';
@@ -53,6 +56,10 @@ import {
 } from './thumbnailStoryboardVtt';
 import {prepareVideoTracksForQualityUi} from './videoTrackQualityMenu';
 import {AirPlayRoutePickerButton} from './AirPlayRoutePickerButton';
+import {CastToast} from './CastToast';
+import {checkIsCasting, clearCastMedia, presentCastDialog, subscribeVRCastSessionEvents} from './castNative';
+import {castLog, castLogHelp, castLogNativeEvent} from './castDebugLog';
+import {isCastFriendlySource} from './isCastFriendlySource';
 import {VideoPlayer} from './videoFork';
 import {StatsForNerdsOverlay} from './StatsForNerdsOverlay';
 import {useStatsForNerds} from './useStatsForNerds';
@@ -178,14 +185,20 @@ function buildCatalogSource(
   const type = inferCatalogPlaybackVideoType(videoUri, catalogMasterUri);
   const drm = buildDrmConfig(item);
   const ad = item.adTagUri ? {adTagUrl: item.adTagUri} : undefined;
+  const isLive = item.tags.includes('live');
 
   return {
     uri: videoUri,
     ...(type ? {type} : {}),
+    ...(isLive ? {isLive: true} : {}),
     ...(drm ? {drm} : {}),
     ...(ad ? {ad} : {}),
     ...(item.headers ? {headers: item.headers} : {}),
     ...(sidecarTextTracks?.length ? {textTracks: sidecarTextTracks} : {}),
+    metadata: {
+      title: item.title,
+      ...(item.thumbnailUri ? {imageUri: item.thumbnailUri} : {}),
+    },
   };
 }
 
@@ -270,6 +283,26 @@ function tagChipStyle(tag: string) {
   }
 }
 
+/** Chromecast receiver fetches the manifest directly — phone-only headers may not apply. */
+function castReceiverWarning(item: CatalogStreamItem | undefined): string | null {
+  if (!item) {
+    return null;
+  }
+  if (item.headers && Object.keys(item.headers).length > 0) {
+    return (
+      'This stream uses custom HTTP headers on the phone. The TV receiver may still block it ' +
+      '(CDN User-Agent / Referer). If TV stays on Connecting…, try a stream without headers.'
+    );
+  }
+  if (item.uri.toLowerCase().includes('bipbop')) {
+    return (
+      'Apple BipBop multi-variant VOD may stall on VR Cast receiver 41A25E4F. ' +
+      'Try Forstreet Live HLS, or play from the start before casting.'
+    );
+  }
+  return null;
+}
+
 export function MediaCatalogPlayer() {
   const {width: windowWidth} = useWindowDimensions();
   const videoWidth = Math.max(0, windowWidth - VIDEO_HORIZONTAL_PADDING);
@@ -336,6 +369,11 @@ export function MediaCatalogPlayer() {
   const [availableVideoTracks, setAvailableVideoTracks] = useState<
     OnLoadData['videoTracks']
   >([]);
+  const [castStatus, setCastStatus] = useState<string | null>(null);
+  const [isCasting, setIsCasting] = useState(false);
+  const [castToastMessage, setCastToastMessage] = useState<string | null>(null);
+  /** True after user presses Play; cleared only on stream reset — used for Cast autoplay. */
+  const castPlayIntentRef = useRef(false);
   /** `auto` = ABR; otherwise native video track `index` for fixed quality. */
   const [videoQualitySelection, setVideoQualitySelection] = useState<
     'auto' | number
@@ -361,9 +399,9 @@ export function MediaCatalogPlayer() {
     [],
   );
 
-  const [volume, setVolume] = useState(1);
+  const [volume, setVolume] = useState(0.1);
   const [muted, setMuted] = useState(false);
-  const volumeBeforeMuteRef = useRef(1);
+  const volumeBeforeMuteRef = useRef(0.1);
 
   const [modal, setModal] = useState<
     'none' | 'settings' | 'speed' | 'quality' | 'textAudio'
@@ -516,6 +554,57 @@ export function MediaCatalogPlayer() {
     );
   }, [selectedItem, playbackUri, activeSubtitlePreset]);
 
+  // Keep Cast session across channel changes (SDK BasicExample pattern).
+  // Supported → setSource → native Cast reloads TV.
+  // Unsupported → clear TV media (do not leave last item playing) + no local Video.
+  useEffect(() => {
+    if (!videoSource) {
+      return;
+    }
+    const castFriendly = isCastFriendlySource(videoSource);
+    castLog('source change', {
+      uri: typeof videoSource.uri === 'string' ? videoSource.uri : undefined,
+      type: videoSource.type,
+      castFriendly,
+    });
+
+    (async () => {
+      const casting = await checkIsCasting();
+      if (casting && !castFriendly) {
+        castLog('unsupported while casting → clearCastMedia (keep session)');
+        clearCastMedia();
+        setPaused(true);
+        setIsContentPlaying(false);
+        castPlayIntentRef.current = false;
+        setCastToastMessage("This video can't be cast to TV");
+        return;
+      }
+
+      videoRef.current?.setSource(videoSource);
+      if (casting && castFriendly) {
+        // isContentPlaying drives Cast autoplay; keep paused=true so local
+        // ExoPlayer does not resume (setPaused(false) while casting flips
+        // native isPaused and wakes the phone surface after setSrc).
+        setIsContentPlaying(true);
+        setHasEnded(false);
+        castPlayIntentRef.current = true;
+      }
+    })();
+  }, [videoSource]);
+
+  useEffect(() => {
+    castLogHelp();
+  }, []);
+
+  const refreshCastingState = useCallback(async () => {
+    try {
+      const casting = await checkIsCasting();
+      setIsCasting(casting);
+    } catch {
+      setIsCasting(false);
+    }
+  }, []);
+
   const {stats, videoCallbacks} = useStatsForNerds(videoSource);
 
   const releaseSeekLock = useCallback(() => {
@@ -531,6 +620,7 @@ export function MediaCatalogPlayer() {
     releaseSeekLock();
     setPaused(true);
     setIsContentPlaying(false);
+    castPlayIntentRef.current = false;
     setHasEnded(false);
     setIsBuffering(false);
     setDuration(0);
@@ -613,10 +703,17 @@ export function MediaCatalogPlayer() {
         wasPlayingBeforeBackgroundRef.current = false;
         resumePlaybackAfterForeground();
       }
+      if (nextAppState === 'active') {
+        refreshCastingState();
+      }
     };
     const sub = AppState.addEventListener('change', handleAppStateChange);
     return () => sub.remove();
-  }, [resumePlaybackAfterForeground]);
+  }, [resumePlaybackAfterForeground, refreshCastingState]);
+
+  useEffect(() => {
+    refreshCastingState();
+  }, [refreshCastingState]);
 
   const handleLoad = useCallback(
     (data: OnLoadData) => {
@@ -728,6 +825,151 @@ export function MediaCatalogPlayer() {
     setIsBuffering(false);
   }, []);
 
+  const syncCastReceiverPlayback = useCallback(() => {
+    castLog('syncCastReceiverPlayback', {
+      action: 'set isContentPlaying=true for TV handoff (keep paused for local)',
+    });
+    // VR fork / Cast load uses isContentPlaying (or !isPaused) for autoplay.
+    // Do NOT setPaused(false) here — while casting that only flips native
+    // isPaused and lets local ExoPlayer start after the next setSrc.
+    setIsContentPlaying(true);
+    setHasEnded(false);
+    castPlayIntentRef.current = true;
+  }, []);
+
+  useEffect(() => {
+    return subscribeVRCastSessionEvents(event => {
+      castLog('VRCast session event', event);
+      if (event.event === 'starting') {
+        setCastStatus('connecting…');
+        return;
+      }
+      if (event.event === 'started') {
+        setIsCasting(true);
+        setCastStatus('connected');
+        // Do not setSource here — that restarts local playback on the phone.
+        // SDK loads TV media + pauseLocalPlaybackForCast() on session start.
+        syncCastReceiverPlayback();
+        return;
+      }
+      if (event.event === 'start_failed') {
+        setIsCasting(false);
+        setCastStatus('failed');
+        setCastToastMessage(
+          `Cast failed to start (code ${event.errorCode ?? 'unknown'}). Retry Cast.`,
+        );
+        return;
+      }
+      if (event.event === 'ended') {
+        setIsCasting(false);
+        setCastStatus(null);
+        setCastToastMessage(
+          'Cast session ended. Tap Cast, then Play to watch on TV again.',
+        );
+      }
+    });
+  }, [syncCastReceiverPlayback]);
+
+  const handleGoogleCastEvent = useCallback((e: OnGoogleCastEventData) => {
+    castLogNativeEvent(e);
+    const eventName = e.event ?? 'unknown';
+    if (eventName === CastEvent.STARTED) {
+      castLog('session STARTED — SDK loads TV media; not calling setSource');
+      setIsCasting(true);
+      syncCastReceiverPlayback();
+      setCastStatus(eventName);
+      return;
+    }
+    if (eventName === CastEvent.AVAILABLE) {
+      castLog('cast device AVAILABLE on network');
+      setCastStatus(eventName);
+      return;
+    }
+    if (
+      eventName === CastEvent.PLAY_STARTED ||
+      eventName === CastEvent.BUFFERING
+    ) {
+      castLog(
+        eventName === CastEvent.PLAY_STARTED
+          ? 'receiver PLAY_STARTED — media playing on TV'
+          : 'receiver BUFFERING',
+      );
+      setIsCasting(true);
+      return;
+    }
+    if (eventName === CastEvent.STOPPED || eventName === CastEvent.IDLE) {
+      castLog(
+        eventName === CastEvent.STOPPED
+          ? 'session STOPPED'
+          : 'session IDLE (no active media on receiver)',
+        {
+          reason: typeof e.reason === 'string' ? e.reason : undefined,
+          message: typeof e.message === 'string' ? e.message : undefined,
+        },
+      );
+      setIsCasting(false);
+      setCastStatus(null);
+      const reason =
+        typeof e.reason === 'string' ? e.reason : undefined;
+      const message =
+        typeof e.message === 'string' ? e.message : undefined;
+      if (reason === 'session_ended') {
+        setCastToastMessage(
+          'Cast session ended. Tap Cast, then Play to watch on TV again.',
+        );
+      } else if (reason === 'error') {
+        const sslHint =
+          message?.toLowerCase().includes('ssl') ||
+          message?.toLowerCase().includes('certificate');
+        setCastToastMessage(
+          sslHint
+            ? 'Cast failed: SSL not trusted. Turn off VPN/proxy, check device date/time, then retry.'
+            : 'Cast disconnected due to an error. Tap Cast to try again.',
+        );
+      }
+      return;
+    }
+    if (eventName === CastEvent.ERROR) {
+      castLog('session ERROR', {
+        message: e.message ?? 'unknown',
+      });
+      setIsCasting(false);
+      setCastStatus(e.message ?? 'Cast error');
+      setCastToastMessage(e.message ?? 'Cast error. Tap Cast to try again.');
+      return;
+    }
+    castLog(`unhandled cast event: ${eventName}`);
+    setCastStatus(eventName);
+  }, [syncCastReceiverPlayback]);
+
+  const handleCastPress = useCallback(() => {
+    castLog('cast icon pressed', {
+      paused,
+      isContentPlaying,
+      isCasting,
+      hasPlayIntent: castPlayIntentRef.current,
+      note: isCasting
+        ? 'will open Cast controller (volume + disconnect)'
+        : 'will open device picker',
+    });
+
+    const receiverWarning = castReceiverWarning(selectedItem);
+    if (receiverWarning) {
+      castLog('cast receiver warning', receiverWarning);
+      setCastToastMessage(receiverWarning);
+    }
+
+    // When already casting, presentCastDialog opens the controller (volume/stop).
+    // When not casting, prime play intent then show the device picker.
+    if (!isCasting) {
+      if (paused) {
+        castLog('auto-starting playback before cast handoff (was paused)');
+      }
+      syncCastReceiverPlayback();
+    }
+    presentCastDialog();
+  }, [isCasting, isContentPlaying, paused, selectedItem, syncCastReceiverPlayback]);
+
   const handleEnd = useCallback(() => {
     if (loopEnabled) {
       setIsContentPlaying(true);
@@ -753,10 +995,12 @@ export function MediaCatalogPlayer() {
       return;
     }
     if (paused) {
+      castPlayIntentRef.current = true;
       setIsContentPlaying(true);
       setPaused(false);
     } else {
       setPaused(true);
+      castPlayIntentRef.current = false;
     }
     showOverlay();
   }, [hasEnded, paused, selectedItem?.playable, showOverlay]);
@@ -781,6 +1025,7 @@ export function MediaCatalogPlayer() {
   );
 
   const handleReplay = useCallback(() => {
+    castPlayIntentRef.current = true;
     setIsContentPlaying(true);
     setPaused(false);
     commitSeek(0);
@@ -810,7 +1055,7 @@ export function MediaCatalogPlayer() {
   const toggleMute = useCallback(() => {
     setMuted(prev => {
       if (!prev) {
-        volumeBeforeMuteRef.current = volume > 0 ? volume : 1;
+        volumeBeforeMuteRef.current = volume > 0 ? volume : 0.1;
         return true;
       }
       setVolume(volumeBeforeMuteRef.current);
@@ -974,30 +1219,25 @@ export function MediaCatalogPlayer() {
     [selectedId, selectCatalogItem],
   );
 
-  const videoKey = selectedItem
-    ? `${selectedId}-${subtitlePresetId}-${playbackUri}-${
-        selectedItem.drmLicenseUri ?? 'clear'
-      }`
-    : 'empty';
+  const hideLocalWhileCastUnsupported =
+    isCasting &&
+    !!videoSource &&
+    !isCastFriendlySource(videoSource);
 
   return (
     <View style={styles.root}>
-      <Pressable
+      <CastToast
+        message={castToastMessage}
+        onDismiss={() => setCastToastMessage(null)}
+      />
+      <View
         style={[styles.videoStage, videoLayoutStyle]}
-        onPress={() => {
-          if (controlsVisible) {
-            setControlsVisible(false);
-            if (hideOverlayTimerRef.current) {
-              clearTimeout(hideOverlayTimerRef.current);
-            }
-          } else {
-            showOverlay();
-          }
-        }}>
-        {selectedItem?.playable && videoSource ? (
-          <View style={styles.videoClip}>
+        pointerEvents="box-none">
+        {selectedItem?.playable && videoSource && !hideLocalWhileCastUnsupported ? (
+          <View style={styles.videoClip} pointerEvents="none">
             <VideoPlayer
-              key={videoKey}
+              // Stable instance — remounting on channel change drops Cast provider.
+              // Channel switches go through setSource (SDK BasicExample pattern).
               ref={videoRef}
               source={videoSource}
               style={StyleSheet.absoluteFill}
@@ -1035,24 +1275,51 @@ export function MediaCatalogPlayer() {
               onTextTracks={handleTextTracks}
               onTextTrackDataChanged={videoCallbacks.onTextTrackDataChanged}
               onVideoTracks={handleVideoTracks}
+              onGoogleCastEvent={handleGoogleCastEvent}
               onFullscreenPlayerDidPresent={() => setIsFullscreen(true)}
               onFullscreenPlayerDidDismiss={() => setIsFullscreen(false)}
             />
             <StatsForNerdsOverlay visible={statsVisible} stats={stats} />
-            <Pressable
-              style={styles.statsTapZone}
-              onPress={handleStatsTripleTap}
-              accessibilityLabel="Stats for nerds toggle"
-            />
           </View>
         ) : (
-          <View style={[styles.placeholder, StyleSheet.absoluteFill]}>
-            <Text style={styles.placeholderTitle}>No preview</Text>
+          <View
+            style={[styles.placeholder, StyleSheet.absoluteFill]}
+            pointerEvents="none">
+            <Text style={styles.placeholderTitle}>
+              {hideLocalWhileCastUnsupported ? 'Not on TV' : 'No preview'}
+            </Text>
             <Text style={styles.placeholderBody}>
-              {selectedItem?.unsupportedHint ??
-                'Pick a playable stream from the list.'}
+              {hideLocalWhileCastUnsupported
+                ? "This video can't be cast. TV media was cleared — pick a castable stream or stop casting to play on phone."
+                : selectedItem?.unsupportedHint ??
+                  'Pick a playable stream from the list.'}
             </Text>
           </View>
+        )}
+
+        {selectedItem?.playable && (
+          <Pressable
+            style={styles.overlayTapCatcher}
+            onPress={() => {
+              if (controlsVisible) {
+                setControlsVisible(false);
+                if (hideOverlayTimerRef.current) {
+                  clearTimeout(hideOverlayTimerRef.current);
+                }
+              } else {
+                showOverlay();
+              }
+            }}
+            accessibilityLabel="Toggle player controls"
+          />
+        )}
+
+        {selectedItem?.playable && (
+          <Pressable
+            style={styles.statsTapZone}
+            onPress={handleStatsTripleTap}
+            accessibilityLabel="Stats for nerds toggle"
+          />
         )}
 
         {skipHint && (
@@ -1071,11 +1338,14 @@ export function MediaCatalogPlayer() {
 
         {controlsVisible && selectedItem?.playable && (
           <View style={styles.overlayRoot} pointerEvents="box-none">
-            <View style={styles.overlayTop}>
-              <Text style={styles.overlayTitle} numberOfLines={1}>
+            <View style={styles.overlayTop} pointerEvents="box-none">
+              <Text
+                style={styles.overlayTitle}
+                pointerEvents="none"
+                numberOfLines={1}>
                 {selectedItem.title}
               </Text>
-              <View style={styles.overlayTopIcons}>
+              <View style={styles.overlayTopIcons} pointerEvents="box-none">
                 <Pressable
                   style={styles.iconHit}
                   onPress={() => {
@@ -1091,6 +1361,15 @@ export function MediaCatalogPlayer() {
                     showOverlay();
                   }}>
                   <Text style={styles.iconGlyph}>⏱</Text>
+                </Pressable>
+                <Pressable
+                  style={styles.iconHit}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cast"
+                  onPress={handleCastPress}>
+                  <View pointerEvents="none">
+                    <GoogleCastButton style={styles.castButton} />
+                  </View>
                 </Pressable>
                 <View style={styles.iconHit}>
                   <AirPlayRoutePickerButton />
@@ -1114,6 +1393,12 @@ export function MediaCatalogPlayer() {
                 <Text style={styles.liveText}>LIVE</Text>
               </View>
             )}
+
+            {castStatus ? (
+              <View style={styles.castPill} pointerEvents="none">
+                <Text style={styles.castPillText}>Cast: {castStatus}</Text>
+              </View>
+            ) : null}
 
             <View style={styles.overlayCenter}>
               <Pressable style={styles.roundBtn} onPress={skipBackward}>
@@ -1211,7 +1496,7 @@ export function MediaCatalogPlayer() {
             </View>
           </View>
         )}
-      </Pressable>
+      </View>
 
       {lastError ? (
         <Text style={styles.errorBanner} numberOfLines={3}>
@@ -1489,13 +1774,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  overlayTapCatcher: {
+    ...StyleSheet.absoluteFill,
+  },
   statsTapZone: {
     position: 'absolute',
     top: 0,
-    right: 0,
+    left: 0,
     width: 72,
     height: 72,
-    zIndex: 30,
+    zIndex: 50,
   },
   placeholder: {
     alignItems: 'center',
@@ -1524,6 +1812,8 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     justifyContent: 'space-between',
     backgroundColor: 'rgba(0,0,0,0.35)',
+    zIndex: 40,
+    elevation: 40,
   },
   overlayTop: {
     flexDirection: 'row',
@@ -1545,6 +1835,10 @@ const styles = StyleSheet.create({
   iconHit: {
     padding: 8,
   },
+  castButton: {
+    width: 28,
+    height: 28,
+  },
   iconGlyph: {
     color: '#f8fafc',
     fontSize: 18,
@@ -1563,6 +1857,22 @@ const styles = StyleSheet.create({
   },
   liveDot: {color: '#fff', fontSize: 10},
   liveText: {color: '#fff', fontWeight: '800', fontSize: 12},
+  castPill: {
+    position: 'absolute',
+    right: 12,
+    bottom: 108,
+    backgroundColor: 'rgba(15,23,42,0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(96,165,250,0.6)',
+  },
+  castPillText: {
+    color: '#bfdbfe',
+    fontWeight: '700',
+    fontSize: 11,
+  },
   overlayCenter: {
     flexDirection: 'row',
     alignItems: 'center',

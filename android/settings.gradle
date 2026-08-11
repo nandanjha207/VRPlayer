@@ -1,6 +1,42 @@
 pluginManagement { includeBuild("../node_modules/@react-native/gradle-plugin") }
 plugins { id("com.facebook.react.settings") }
-extensions.configure(com.facebook.react.ReactSettingsExtension){ ex -> ex.autolinkLibrariesFromCommand() }
+
+// Android Studio Gradle often has no nvm on PATH → bare `npx`/`node` fails.
+def loadLocalProperties() {
+    def props = new Properties()
+    def f = new File(settingsDir, "local.properties")
+    if (f.exists()) {
+        f.withInputStream { props.load(it) }
+    }
+    return props
+}
+
+def resolveNodeExecutable() {
+    def local = loadLocalProperties()
+    def candidates = [
+        System.getenv("NODE_BINARY"),
+        local.getProperty("nodejs.executable"),
+        "${System.getProperty('user.home')}/.nvm/versions/node/v22.22.2/bin/node",
+        "${System.getProperty('user.home')}/.nvm/versions/node/v20.20.2/bin/node",
+        "/opt/homebrew/bin/node",
+        "/usr/local/bin/node",
+    ]
+    def found = candidates.find { it != null && !it.toString().trim().isEmpty() && new File(it.toString()).exists() }
+    if (found == null) {
+        throw new GradleException(
+            "Cannot find node. Set nodejs.executable in android/local.properties " +
+            "or NODE_BINARY (Android Studio Gradle does not inherit nvm PATH)."
+        )
+    }
+    return found.toString()
+}
+
+def nodeExecutable = resolveNodeExecutable()
+def cliBin = new File(settingsDir, "../node_modules/@react-native-community/cli/build/bin.js").canonicalFile
+
+extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
+    ex.autolinkLibrariesFromCommand([nodeExecutable, cliBin.absolutePath, "config"])
+}
 rootProject.name = 'VRPlayer'
 include ':app'
 includeBuild('../node_modules/@react-native/gradle-plugin')
