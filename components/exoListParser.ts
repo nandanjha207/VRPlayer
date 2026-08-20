@@ -4,6 +4,7 @@
  */
 
 import {Platform} from 'react-native';
+import type {Drm} from '@ttn/vr-rn-player-sdk';
 
 export type ExoListSample = {
   name: string;
@@ -31,7 +32,11 @@ export type CatalogStreamItem = {
   id: string;
   category: string;
   title: string;
+  /** Optional description for DRM factory matching (e.g. KeyOS / TTNTEST). */
+  description?: string;
   uri: string;
+  /** Pre-built SDK DRM config (KeyOS FairPlay, etc.). */
+  drm?: Drm;
   drmScheme?: string;
   drmLicenseUri?: string;
   drmSessionForClearContent?: boolean;

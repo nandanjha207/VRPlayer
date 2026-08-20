@@ -22,7 +22,7 @@ function formatLabel(item: CatalogStreamItem): string {
   if (item.tags.includes('live')) {
     return 'LIVE';
   }
-  if (item.drmScheme) {
+  if (item.drmScheme || item.drm) {
     return 'DRM';
   }
   if (lower.includes('.m3u8')) {

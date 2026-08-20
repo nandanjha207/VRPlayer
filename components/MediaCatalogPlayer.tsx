@@ -60,6 +60,8 @@ import {CastToast} from './CastToast';
 import {checkIsCasting, clearCastMedia, presentCastDialog, subscribeVRCastSessionEvents} from './castNative';
 import {castLog, castLogHelp, castLogNativeEvent} from './castDebugLog';
 import {isCastFriendlySource} from './isCastFriendlySource';
+import {drmConfigurationForContent} from './drm/drmConfigurationForContent';
+import {buildKeyOSDrmConfigWithCallback} from './drm/keyosDrm';
 import {VideoPlayer} from './videoFork';
 import {StatsForNerdsOverlay} from './StatsForNerdsOverlay';
 import {useStatsForNerds} from './useStatsForNerds';
@@ -107,6 +109,14 @@ function inferCatalogPlaybackVideoType(
 }
 
 function buildDrmConfig(item: CatalogStreamItem): Drm | undefined {
+  const fromDescriptor = drmConfigurationForContent(
+    {description: item.description ?? item.title, drm: item.drm},
+    item.fairPlayCustomData,
+  );
+  if (fromDescriptor) {
+    return fromDescriptor;
+  }
+
   if (!item.drmScheme) {
     return undefined;
   }
@@ -119,35 +129,14 @@ function buildDrmConfig(item: CatalogStreamItem): Drm | undefined {
     if (!licenseServer || !certificateUrl) {
       return undefined;
     }
+    if (customData) {
+      return buildKeyOSDrmConfigWithCallback(customData);
+    }
     return {
       type: DRMType.FAIRPLAY,
       licenseServer,
       certificateUrl,
       contentId: item.fairPlayContentId,
-      ...(customData
-        ? {
-            getLicense: (
-              spcBase64: string,
-              contentId: string,
-              licenseUrl: string,
-            ) =>
-              fetch(licenseUrl || licenseServer, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/x-www-form-urlencoded',
-                  customdata: customData,
-                },
-                body: `spc=${encodeURIComponent(spcBase64)}&assetId=${encodeURIComponent(contentId)}`,
-              }).then(response => {
-                if (!response.ok) {
-                  throw new Error(
-                    `KeyOS license HTTP ${response.status}: ${response.statusText}`,
-                  );
-                }
-                return response.text();
-              }),
-          }
-        : {}),
     };
   }
 

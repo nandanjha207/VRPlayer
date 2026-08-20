@@ -10,15 +10,16 @@ import {
   GOOGLE_IMA_LINEAR_PREROLL_AD_TAG,
   GOOGLE_IMA_SAMPLE_CONTENT_URI,
 } from './googleImaSampleConfig';
+import {
+  buildKeyOSDrmConfigWithCallback,
+  KEYOS_CUSTOMDATA,
+} from './drm/keyosDrm';
 
-/** KeyOS demo token (FairPlay) — rotate via your KeyOS portal when expired. */
-export const KEYOS_MERIDIAN_CUSTOM_DATA =
-  'PD94bWwgdmVyc2lvbj0iMS4wIj8+CjxLZXlPU0F1dGhlbnRpY2F0aW9uWE1MPjxEYXRhPjxXaWRldmluZVBvbGljeSBmbF9DYW5QZXJzaXN0PSJmYWxzZSIgZmxfQ2FuUGxheT0idHJ1ZSIvPjxXaWRldmluZUNvbnRlbnRLZXlTcGVjIFRyYWNrVHlwZT0iSEQiPjxTZWN1cml0eUxldmVsPjE8L1NlY3VyaXR5TGV2ZWw+PC9XaWRldmluZUNvbnRlbnRLZXlTcGVjPjxGYWlyUGxheVBvbGljeSBwZXJzaXN0ZW50PSJmYWxzZSIvPjxMaWNlbnNlIHR5cGU9InNpbXBsZSIvPjxHZW5lcmF0aW9uVGltZT4yMDI2LTAxLTI2IDE4OjAyOjEzLjAwMDwvR2VuZXJhdGlvblRpbWU+PEV4cGlyYXRpb25UaW1lPjIwNDEtMDEtMjYgMTg6MDI6MTMuMDAwPC9FeHBpcmF0aW9uVGltZT48VW5pcXVlSWQ+NzFmZTdhYmNjMzE4ZDE2M2EwYTJmOWE4NDVjOGI2ZTk8L1VuaXF1ZUlkPjxSU0FQdWJLZXlJZD43ZTExNDAwYzdkY2NkMjlkMDE3NGM2NzQzOTdkOTlkZDwvUlNBUHViS2V5SWQ+PC9EYXRhPjxTaWduYXR1cmU+WWZXR2VJSmpNYjRLOEVWWGRUck9OM1h5SVJlM1Uwams5YU1jVkVoVFluc1FKMTI3NUdmNlF3VzZ6SkVQUjNtYlNwU2crWEVVcVNEVm5wQVcwY1lQUWpiM21Hcjl4clJLR0xrcVJUU0VYR25JblpzSWJuc3VlOHZweXcycTRRVUo5OHpwV0J3NFhzeDY2b2NrV2R2dUFoTkFydHpSZHAvUDhuekdWdXc1eE5scy9tSEswMmxmb09rVGY4ZHc3M2RLTkx4SXZ6TjdyWnRHWlVGbSs1VTNtVjB2SzNybUE3TmF3dkltSEwzUFJVbXFEUjBWKytHVDFZMU5wRHZCOTNPb1hIK0FKWGhOOGhxWTEzMzRKQnVIdGtuQXJjRlh5MW5LVlFQbzZGd1VsVmJzNFBzOS9rL3ltZ0h0UXV4bGZ1SWFOcUtadEtlRXNSbnl4eWFLRytvOVBnPT08L1NpZ25hdHVyZT48L0tleU9TQXV0aGVudGljYXRpb25YTUw+Cg==';
+/** @deprecated Use {@link KEYOS_CUSTOMDATA} from `./drm/keyosDrm`. */
+export const KEYOS_MERIDIAN_CUSTOM_DATA = KEYOS_CUSTOMDATA;
 
-const KEYOS_FP_LICENSE = 'https://fp-keyos.licensekeyserver.com/getkey/';
-const KEYOS_FP_CERT = 'https://fp-keyos.licensekeyserver.com/cert/';
-const KEYOS_MERIDIAN_HLS =
-  'https://d2jl6e4h8300i8.cloudfront.net/netflix_meridian/4k-18.5!9/keyos-logo/g180-avc_a2.0-vbr-aac-128k/r30/hls-fp/master.m3u8';
+const HLS_HARMONIC_KEYOS_TTNTEST =
+  'https://cdn-spotv-a-01.vos360.video/Content/HLS_HLS/Live/channel(drm)/index.m3u8';
 
 const WV_TEARS_MANIFEST =
   'https://storage.googleapis.com/wvmedia/cenc/h264/tears/tears.mpd';
@@ -224,6 +225,20 @@ export function buildCuratedPlaylist(): CatalogStreamItem[] {
         Platform.OS === 'ios'
           ? 'Widevine only on Android.'
           : 'Play 60s+ to verify license renewal.',
+    },
+    {
+      category: 'DRM – FairPlay (KeyOS / Harmonic)',
+      title: 'HLS live – TTNTEST (KeyOS FairPlay)',
+      description: '(hls|live|fairplay|keyos) TTNTEST',
+      uri: HLS_HARMONIC_KEYOS_TTNTEST,
+      thumbnailUri: THUMB_TEARS,
+      drm: buildKeyOSDrmConfigWithCallback(KEYOS_CUSTOMDATA),
+      tags: ['drm', 'live'],
+      playable: Platform.OS === 'ios',
+      unsupportedHint:
+        Platform.OS === 'android'
+          ? 'FairPlay — iOS physical device only (not simulator).'
+          : 'Harmonic VOS360 live HLS via KeyOS v4 API. Real iPhone required.',
     },
     {
       category: 'DRM – FairPlay (iOS test)',
