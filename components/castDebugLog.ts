@@ -1,4 +1,4 @@
-import type {OnGoogleCastEventData} from 'react-native-video';
+import type {OnGoogleCastEventData} from '@ttn/vr-rn-player-sdk';
 
 /** Set false to silence Cast logs in dev. */
 export const CAST_DEBUG = __DEV__;

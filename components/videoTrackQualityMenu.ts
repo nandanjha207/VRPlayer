@@ -4,7 +4,7 @@
  * duplicate resolutions and confuse selection — we keep one playable row per size.
  */
 
-import type {OnLoadData} from 'react-native-video';
+import type {OnLoadData} from '@ttn/vr-rn-player-sdk';
 
 type VideoTrackRow = OnLoadData['videoTracks'][number];
 

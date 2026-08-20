@@ -20,8 +20,8 @@ import type {
   OnProgressData,
   OnReceiveAdEventData,
   ReactVideoSource,
-} from 'react-native-video';
-import {AdEvent} from 'react-native-video';
+} from '@ttn/vr-rn-player-sdk';
+import {AdEvent} from '@ttn/vr-rn-player-sdk';
 import {
   GOOGLE_IMA_LONG_SAMPLE_CONTENT_URI,
   GOOGLE_IMA_PREMIDPOST_MIDROLL_CUE_SECONDS,

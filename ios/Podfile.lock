@@ -1540,7 +1540,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-video (1.0.1):
+  - react-native-video (1.0.4):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1552,7 +1552,7 @@ PODS:
     - React-graphics
     - React-ImageManager
     - React-jsi
-    - react-native-video/Video (= 1.0.1)
+    - react-native-video/Video (= 1.0.4)
     - React-NativeModulesApple
     - React-RCTFabric
     - React-renderercss
@@ -1563,7 +1563,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-video/Fabric (1.0.1):
+  - react-native-video/Fabric (1.0.4):
     - hermes-engine
     - RCTRequired
     - RCTTypeSafety
@@ -1585,7 +1585,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - ReactNativeDependencies
     - Yoga
-  - react-native-video/Video (1.0.1):
+  - react-native-video/Video (1.0.4):
     - google-cast-sdk (~> 4.8.4)
     - GoogleAds-IMA-iOS-SDK (~> 3.23.0)
     - GoogleAds-IMA-tvOS-SDK (~> 4.2)
@@ -2044,7 +2044,7 @@ DEPENDENCIES:
   - "react-native-netinfo (from `../node_modules/@react-native-community/netinfo`)"
   - react-native-safe-area-context (from `../node_modules/react-native-safe-area-context`)
   - "react-native-slider (from `../node_modules/@react-native-community/slider`)"
-  - react-native-video (from `../node_modules/react-native-video`)
+  - "react-native-video (from `../node_modules/@ttn/vr-rn-player-sdk`)"
   - React-NativeModulesApple (from `../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios`)
   - React-networking (from `../node_modules/react-native/ReactCommon/react/networking`)
   - React-oscompat (from `../node_modules/react-native/ReactCommon/oscompat`)
@@ -2174,7 +2174,7 @@ EXTERNAL SOURCES:
   react-native-slider:
     :path: "../node_modules/@react-native-community/slider"
   react-native-video:
-    :path: "../node_modules/react-native-video"
+    :path: "../node_modules/@ttn/vr-rn-player-sdk"
   React-NativeModulesApple:
     :path: "../node_modules/react-native/ReactCommon/react/nativemodule/core/platform/ios"
   React-networking:
@@ -2293,7 +2293,7 @@ SPEC CHECKSUMS:
   react-native-netinfo: 4319d381f35bc11b53dafebd5cd99c04c66a9fb4
   react-native-safe-area-context: fb5c8ee9f6dd62ef710611b3d370c501f42a4ac0
   react-native-slider: 08ecfc4e9cc16cc388a56dd9caeca51b55cd9bb7
-  react-native-video: 8b0b0a05e42a9b65f4a74bb9441ee258bdc83206
+  react-native-video: 3999ad434fdd2969f192c58f4488cdec0c7905f4
   React-NativeModulesApple: deba264b03bd79c6bd61014fa30e40321b5e443a
   React-networking: 35e6070b084f435429f85c5db40b4d5b38652fe9
   React-oscompat: 64a0c7ef5441855dc6e2a6afe8ba8f92aa05075e

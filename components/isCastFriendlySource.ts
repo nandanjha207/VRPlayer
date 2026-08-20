@@ -1,5 +1,5 @@
-import {DRMType} from 'react-native-video';
-import type {ReactVideoSource} from 'react-native-video';
+import {DRMType} from '@ttn/vr-rn-player-sdk';
+import type {ReactVideoSource} from '@ttn/vr-rn-player-sdk';
 
 /** Matches SDK Cast media builder: network HLS/DASH, Widevine only (no FairPlay). */
 export function isCastFriendlySource(source?: ReactVideoSource): boolean {

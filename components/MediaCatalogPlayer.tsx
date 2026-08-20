@@ -39,7 +39,7 @@ import {
   type VideoRef,
   GoogleCastButton,
   CastEvent,
-} from 'react-native-video';
+} from '@ttn/vr-rn-player-sdk';
 import {CURATED_PLAYLIST} from './curatedPlaylist';
 import {type CatalogStreamItem} from './exoListParser';
 import {inferManifestKind} from './manifestQualities';

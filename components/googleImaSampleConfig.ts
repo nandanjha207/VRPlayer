@@ -10,7 +10,7 @@
  */
 
 import {Platform} from 'react-native';
-import type {AdBreak} from 'react-native-video';
+import type {AdBreak} from '@ttn/vr-rn-player-sdk';
 
 /** ExoPlayer sample MKV — fine on Android; AVPlayer on iOS does not decode MKV. */
 export const GOOGLE_IMA_SAMPLE_CONTENT_URI_ANDROID =
