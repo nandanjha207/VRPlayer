@@ -1,12 +1,12 @@
 /**
- * Shared Google IMA / GAM **sample** URLs for QA (same tags as Google devsite samples).
- * Used by `ImaAdTestPlayer` and the curated catalog IMA row.
+ * Shared Google IMA / GAM **sample** URLs for QA.
  *
- * SDK v1.0.3+ schedules ads via `source.ad.adBreaks`; the player builds inline VMAP
- * (`buildVmapFromAdBreaks`) and passes `adsResponse` to native IMA.
+ * - Catalog row uses {@link GOOGLE_IMA_LINEAR_PREROLL_AD_TAG} with {@link adTagUrl}.
+ * - IMA test player uses {@link GOOGLE_IMA_PRE_MID_POST_AD_BREAKS} with `source.ad.adBreaks`
+ *   (SDK builds inline VMAP via `buildVmapFromAdBreaks`).
  *
- * Mid/post breaks must use `ad_rule_samples` VAST with `vpos` + `cue` — reusing
- * `single_ad_samples` linear URLs causes `AD_BREAK_FETCH_ERROR` / empty VAST.
+ * Multi-break tags must use `/21775744923/external/vmap_ad_samples` with per-position
+ * `vpos` / `cue` / `pod` params — not reused `single_ad_samples` linear URLs.
  */
 
 import {Platform} from 'react-native';
@@ -21,99 +21,75 @@ export const GOOGLE_IMA_SAMPLE_CONTENT_URI_IOS =
   'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/1080/Big_Buck_Bunny_1080_10s_1MB.mp4';
 
 /**
- * Long VOD for mid-roll QA — Apple BipBop HLS (known duration, both platforms).
- */
-export const GOOGLE_IMA_LONG_SAMPLE_CONTENT_URI =
-  'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8';
-
-/**
- * Main **content** URL for client-side ads QA. Must be a format **AVPlayer can play** on iOS
- * or the item never becomes ready, IMA `requestAds` may not run, and you see a black surface
- * with no ad events.
+ * Main **content** URL for catalog IMA QA. Must be a format **AVPlayer can play** on iOS.
  */
 export const GOOGLE_IMA_SAMPLE_CONTENT_URI =
   Platform.OS === 'ios'
     ? GOOGLE_IMA_SAMPLE_CONTENT_URI_IOS
     : GOOGLE_IMA_SAMPLE_CONTENT_URI_ANDROID;
 
-/** Single-break preroll QA (`single_ad_samples` — only valid for standalone preroll). */
+/** Single-break preroll (`source.ad.adTagUrl`). */
 export const GOOGLE_IMA_LINEAR_PREROLL_AD_TAG =
   'https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/single_ad_samples&ciu_szs=300x250&impl=s&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ct%3Dlinear&correlator=';
 
+/** Single skippable linear ad (`source.ad.adTagUrl`). */
 export const GOOGLE_IMA_SKIPPABLE_AD_TAG =
   'https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/single_ad_samples&ciu_szs=300x250&impl=s&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ct%3Dskippablelinear&correlator=';
 
-/** Google devsite server VMAP (pre / 15s mid / post in one tag). */
-export const GOOGLE_IMA_VMAP_PREMIDPOST_AD_TAG =
-  'https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/ad_rule_samples&ciu_szs=300x250&ad_rule=1&impl=s&gdfp_req=1&env=vp&output=vmap&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ar%3Dpremidpost&cmsid=496&vid=short_onecue&correlator=';
-
 /**
- * Base for Google devsite **premidpost** per-break VAST URLs (same inventory as server VMAP).
- * Each break needs `vpos` and mid-rolls need `cue` in **milliseconds** matching `position`.
+ * Long VOD for pre/mid/post adBreaks QA (Eyevinn sample — matches SDK example).
  */
+export const GOOGLE_IMA_PREMIDPOST_CONTENT_URI =
+  'https://maitv-vod.lab.eyevinn.technology/VINN.mp4/master.m3u8';
+
+/** Google premidpost VAST base — same inventory as SDK `ads_using_Adbreak.md`. */
 const GOOGLE_IMA_PREMIDPOST_VAST_BASE =
-  'https://pubads.g.doubleclick.net/gampad/ads?sz=640x480&iu=/124319096/external/ad_rule_samples&ciu_szs=300x250&impl=s&gdfp_req=1&env=vp&output=vast&unviewed_position_start=1&cust_params=deployment%3Ddevsite%26sample_ar%3Dpremidpost&cmsid=496&vid=short_onecue&vad_type=linear';
+  'https://pubads.g.doubleclick.net/gampad/ads?iu=/21775744923/external/vmap_ad_samples&sz=640x480&ciu_szs=300x250&cust_params=sample_ar%3Dpremidpost&unviewed_position_start=1&output=xml_vast3&impl=s&env=vp&gdfp_req=1&ad_rule=0&vad_type=linear&cmsid=496&vid=short_onecue&lip=true&min_ad_duration=0&max_ad_duration=30000';
 
-export function googleImaPremidpostPrerollVastTag(): string {
-  return `${GOOGLE_IMA_PREMIDPOST_VAST_BASE}&vpos=preroll&correlator=`;
-}
+export const GOOGLE_IMA_PREMIDPOST_PREROLL_AD_TAG =
+  `${GOOGLE_IMA_PREMIDPOST_VAST_BASE}&vpos=preroll&pod=1&ppos=1&correlator=`;
 
-/** @param cueSeconds Must match the `adBreaks[].position` value (IMA `cue` is ms). */
-export function googleImaPremidpostMidrollVastTag(cueSeconds: number): string {
-  const cueMs = Math.round(cueSeconds * 1000);
-  return `${GOOGLE_IMA_PREMIDPOST_VAST_BASE}&vpos=midroll&cue=${cueMs}&correlator=`;
-}
+/** Mid-roll sample tag (cue=15000 ms) — SDK uses this URL for each mid-roll break. */
+export const GOOGLE_IMA_PREMIDPOST_MIDROLL_AD_TAG =
+  `${GOOGLE_IMA_PREMIDPOST_VAST_BASE}&cue=15000&vpos=midroll&pod=2&mridx=1&rmridx=1&ppos=1&correlator=`;
 
-export function googleImaPremidpostPostrollVastTag(): string {
-  return `${GOOGLE_IMA_PREMIDPOST_VAST_BASE}&vpos=postroll&correlator=`;
-}
+export const GOOGLE_IMA_PREMIDPOST_POSTROLL_AD_TAG =
+  `${GOOGLE_IMA_PREMIDPOST_VAST_BASE}&vpos=postroll&pod=3&ppos=1&correlator=`;
 
-/** Mid-roll cue times (seconds) — keep in sync with {@link GOOGLE_IMA_PRE_MID_POST_AD_BREAKS}. */
-export const GOOGLE_IMA_PREMIDPOST_MIDROLL_CUE_SECONDS = [15, 30] as const;
-
-/**
- * Pre / 15s / 30s / post — each break uses a **position-aware** GAM sample VAST URL.
- */
+/** Pre / 15s / 30s / post — pass as `source.ad.adBreaks`. */
 export const GOOGLE_IMA_PRE_MID_POST_AD_BREAKS: ReadonlyArray<AdBreak> = [
-  {position: 'pre', adTagUrl: googleImaPremidpostPrerollVastTag()},
-  {
-    position: GOOGLE_IMA_PREMIDPOST_MIDROLL_CUE_SECONDS[0],
-    adTagUrl: googleImaPremidpostMidrollVastTag(
-      GOOGLE_IMA_PREMIDPOST_MIDROLL_CUE_SECONDS[0],
-    ),
-  },
-  {
-    position: GOOGLE_IMA_PREMIDPOST_MIDROLL_CUE_SECONDS[1],
-    adTagUrl: googleImaPremidpostMidrollVastTag(
-      GOOGLE_IMA_PREMIDPOST_MIDROLL_CUE_SECONDS[1],
-    ),
-  },
-  {position: 'post', adTagUrl: googleImaPremidpostPostrollVastTag()},
+  {position: 'pre', adTagUrl: GOOGLE_IMA_PREMIDPOST_PREROLL_AD_TAG},
+  {position: 15, adTagUrl: GOOGLE_IMA_PREMIDPOST_MIDROLL_AD_TAG},
+  {position: 30, adTagUrl: GOOGLE_IMA_PREMIDPOST_MIDROLL_AD_TAG},
+  {position: 'post', adTagUrl: GOOGLE_IMA_PREMIDPOST_POSTROLL_AD_TAG},
 ];
 
 export type GoogleImaTestPreset = {
   id: string;
   label: string;
-  adBreaks: ReadonlyArray<AdBreak>;
-  /** Use {@link GOOGLE_IMA_LONG_SAMPLE_CONTENT_URI} so mid-roll offsets are reachable. */
-  needsLongContent?: boolean;
+  /** Single ad — SDK uses `source.ad.adTagUrl`. */
+  adTagUrl?: string;
+  /** Multi break — SDK uses `source.ad.adBreaks`. */
+  adBreaks?: ReadonlyArray<AdBreak>;
+  /** Override content URI (defaults to {@link GOOGLE_IMA_SAMPLE_CONTENT_URI}). */
+  contentUri?: string;
 };
 
 export const GOOGLE_IMA_TEST_PRESETS: GoogleImaTestPreset[] = [
   {
     id: 'preroll',
     label: '1. Linear preroll',
-    adBreaks: [{position: 'pre', adTagUrl: GOOGLE_IMA_LINEAR_PREROLL_AD_TAG}],
+    adTagUrl: GOOGLE_IMA_LINEAR_PREROLL_AD_TAG,
   },
   {
     id: 'skippable',
     label: '2. Skippable',
-    adBreaks: [{position: 'pre', adTagUrl: GOOGLE_IMA_SKIPPABLE_AD_TAG}],
+    adTagUrl: GOOGLE_IMA_SKIPPABLE_AD_TAG,
   },
   {
     id: 'premidpost-breaks',
     label: '3. Pre / 15s / 30s / post',
     adBreaks: GOOGLE_IMA_PRE_MID_POST_AD_BREAKS,
-    needsLongContent: true,
+    contentUri: GOOGLE_IMA_PREMIDPOST_CONTENT_URI,
   },
 ];

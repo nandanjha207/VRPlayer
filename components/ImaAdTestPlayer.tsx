@@ -1,8 +1,10 @@
 /**
- * Minimal Google IMA (client-side) test harness using react-native-video `source.ad`.
- * Requires native flags: Android `useExoplayerIMA`, iOS `$RNVideoUseGoogleIMA` (see docs/video-ads-ima.md).
+ * Google IMA (client-side) test harness.
  *
- * This fork’s Android player ties resume to `isContentPlaying` — see docs/video-ads-ima.md.
+ * - Single ad presets → `source.ad.adTagUrl`
+ * - Pre/mid/post preset → `source.ad.adBreaks` (SDK `buildVmapFromAdBreaks`)
+ *
+ * Requires native flags: Android `useExoplayerIMA`, iOS `$RNVideoUseGoogleIMA` (see docs/video-ads-ima.md).
  */
 
 import React, {useCallback, useMemo, useState} from 'react';
@@ -23,10 +25,9 @@ import type {
 } from '@ttn/vr-rn-player-sdk';
 import {AdEvent} from '@ttn/vr-rn-player-sdk';
 import {
-  GOOGLE_IMA_LONG_SAMPLE_CONTENT_URI,
-  GOOGLE_IMA_PREMIDPOST_MIDROLL_CUE_SECONDS,
   GOOGLE_IMA_SAMPLE_CONTENT_URI,
   GOOGLE_IMA_TEST_PRESETS,
+  type GoogleImaTestPreset,
 } from './googleImaSampleConfig';
 import {VideoPlayer} from './videoFork';
 
@@ -56,6 +57,19 @@ function formatClock(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+function buildSourceAd(preset: GoogleImaTestPreset): NonNullable<ReactVideoSource['ad']> {
+  const common = {
+    adLanguage: 'en' as const,
+    gamRequestTimeoutMs: GAM_REQUEST_TIMEOUT_MS,
+  };
+
+  if (preset.adBreaks != null && preset.adBreaks.length > 0) {
+    return {adBreaks: preset.adBreaks, ...common};
+  }
+
+  return {adTagUrl: preset.adTagUrl!, ...common};
+}
+
 export default function ImaAdTestPlayer() {
   const {width} = useWindowDimensions();
   const [presetIndex, setPresetIndex] = useState(DEFAULT_PRESET_INDEX);
@@ -67,19 +81,13 @@ export default function ImaAdTestPlayer() {
   const preset = GOOGLE_IMA_TEST_PRESETS[presetIndex]!;
 
   const source: ReactVideoSource = useMemo(() => {
-    const useLongContent = preset.needsLongContent === true;
-    const contentUri = useLongContent
-      ? GOOGLE_IMA_LONG_SAMPLE_CONTENT_URI
-      : GOOGLE_IMA_SAMPLE_CONTENT_URI;
+    const contentUri = preset.contentUri ?? GOOGLE_IMA_SAMPLE_CONTENT_URI;
+    const useShortSample = preset.contentUri == null;
 
     return {
       uri: contentUri,
-      ...(Platform.OS === 'android' && !useLongContent ? {type: 'mkv' as const} : {}),
-      ad: {
-        adBreaks: preset.adBreaks,
-        adLanguage: 'en',
-        gamRequestTimeoutMs: GAM_REQUEST_TIMEOUT_MS,
-      },
+      ...(Platform.OS === 'android' && useShortSample ? {type: 'mkv' as const} : {}),
+      ad: buildSourceAd(preset),
     };
   }, [preset]);
 
@@ -131,23 +139,14 @@ export default function ImaAdTestPlayer() {
     [],
   );
 
-  const nextMidCue = useMemo(() => {
-    if (!preset.needsLongContent) {
-      return null;
-    }
-    return (
-      GOOGLE_IMA_PREMIDPOST_MIDROLL_CUE_SECONDS.find(
-        cue => contentCurrentTime < cue - 0.25,
-      ) ?? null
-    );
-  }, [contentCurrentTime, preset.needsLongContent]);
+  const hintText =
+    preset.adBreaks != null
+      ? 'Preset 3: pre / mid / post via source.ad.adBreaks.'
+      : `Preset ${presetIndex + 1}: single ad via source.ad.adTagUrl.`;
 
   return (
     <View style={styles.root}>
-      <Text style={styles.hint}>
-        Preset 3: mid-rolls fire at content {GOOGLE_IMA_PREMIDPOST_MIDROLL_CUE_SECONDS.join('s / ')}s
-        (after preroll ends). Do not seek past cues. Content playhead is shown below — it must advance.
-      </Text>
+      <Text style={styles.hint}>{hintText}</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -169,17 +168,16 @@ export default function ImaAdTestPlayer() {
             </Text>
           </Pressable>
         ))}
-        <Pressable
-          onPress={() => remountPlayer()}
-          style={styles.reloadChip}>
+        <Pressable onPress={() => remountPlayer()} style={styles.reloadChip}>
           <Text style={styles.reloadChipText}>Reload player</Text>
         </Pressable>
       </ScrollView>
-      <Text style={styles.playhead}>
-        Content playhead: {formatClock(contentCurrentTime)}
-        {contentDuration > 0 ? ` / ${formatClock(contentDuration)}` : ''}
-        {nextMidCue != null ? ` · next mid-roll @ ${nextMidCue}s` : ''}
-      </Text>
+      {preset.adBreaks != null ? (
+        <Text style={styles.playhead}>
+          Content playhead: {formatClock(contentCurrentTime)}
+          {contentDuration > 0 ? ` / ${formatClock(contentDuration)}` : ''}
+        </Text>
+      ) : null}
       <VideoPlayer
         key={`${preset.id}-${reloadNonce}`}
         source={source}
@@ -228,13 +226,6 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     lineHeight: 18,
   },
-  playhead: {
-    color: '#e2e8f0',
-    fontSize: 12,
-    fontWeight: '600',
-    marginBottom: 8,
-    fontFamily: Platform.select({ios: 'Menlo', android: 'monospace'}),
-  },
   presetRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -260,6 +251,13 @@ const styles = StyleSheet.create({
   },
   presetChipTextSelected: {
     color: '#f0f9ff',
+  },
+  playhead: {
+    color: '#e2e8f0',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+    fontFamily: Platform.select({ios: 'Menlo', android: 'monospace'}),
   },
   reloadChip: {
     borderRadius: 8,
