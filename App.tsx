@@ -7,10 +7,11 @@
 import React, {useState} from 'react';
 import {Pressable, StatusBar, StyleSheet, Text, useColorScheme, View} from 'react-native';
 import {SafeAreaProvider, SafeAreaView} from 'react-native-safe-area-context';
+import DvrTestPlayer from './components/DvrTestPlayer';
 import ImaAdTestPlayer from './components/ImaAdTestPlayer';
 import MediaCatalogPlayer from './components/MediaCatalogPlayer';
 
-type AppMode = 'catalog' | 'ima';
+type AppMode = 'catalog' | 'ima' | 'dvr';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -43,8 +44,25 @@ function App() {
               IMA ads
             </Text>
           </Pressable>
+          <Pressable
+            onPress={() => setMode('dvr')}
+            style={[styles.modeTab, mode === 'dvr' && styles.modeTabActive]}>
+            <Text
+              style={[
+                styles.modeTabLabel,
+                mode === 'dvr' && styles.modeTabLabelActive,
+              ]}>
+              DVR
+            </Text>
+          </Pressable>
         </View>
-        {mode === 'catalog' ? <MediaCatalogPlayer /> : <ImaAdTestPlayer />}
+        {mode === 'catalog' ? (
+          <MediaCatalogPlayer />
+        ) : mode === 'ima' ? (
+          <ImaAdTestPlayer />
+        ) : (
+          <DvrTestPlayer />
+        )}
       </SafeAreaView>
     </SafeAreaProvider>
   );
