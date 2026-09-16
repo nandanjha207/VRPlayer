@@ -1763,10 +1763,10 @@
   dependencies:
     "@sinonjs/commons" "^3.0.0"
 
-"@ttn/vr-rn-player-sdk@1.0.5":
-  version "1.0.5"
-  resolved "http://10.100.1.64:8081/repository/npm-local/@ttn/vr-rn-player-sdk/-/vr-rn-player-sdk-1.0.5.tgz"
-  integrity sha512-KfROGGiETr/lQmbiMhlII6eeVOzyPU0b+alNWm7PA3sVPTvrCgCeIkSoIHy7vDXbeF29IzLIYbJNpd6cZOloUQ==
+"@ttn/vr-rn-player-sdk@1.0.6":
+  version "1.0.6"
+  resolved "http://10.100.1.64:8081/repository/npm-local/@ttn/vr-rn-player-sdk/-/vr-rn-player-sdk-1.0.6.tgz"
+  integrity sha512-nV1v7OIHsg1pYWBs9DrJqJ7QlZoDeY1VX5zgWn+yVFNOstZQ6lLXLpsmum8ZcsnHA+CzWkS654CoP8YxGC9N8w==
 
 "@types/babel__core@^7.1.14":
   version "7.20.5"
@@ -3448,6 +3448,11 @@ fs.realpath@^1.0.0:
   version "1.0.0"
   resolved "https://registry.npmjs.org/fs.realpath/-/fs.realpath-1.0.0.tgz"
   integrity sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==
+
+fsevents@^2.3.2:
+  version "2.3.3"
+  resolved "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz"
+  integrity sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==
 
 function-bind@^1.1.2:
   version "1.1.2"

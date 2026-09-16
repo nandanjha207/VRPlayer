@@ -37,6 +37,7 @@ import {
   type TextTracks,
   type OnGoogleCastEventData,
   type VideoRef,
+  type OnLowNetworkDetectedData,
   GoogleCastButton,
   CastEvent,
 } from '@ttn/vr-rn-player-sdk';
@@ -189,6 +190,7 @@ function buildCatalogSource(
 
   return {
     uri: videoUri,
+    isLowNetworkDetectionEnabled: true,
     ...(type ? {type} : {}),
     ...(isLive ? {isLive: true} : {}),
     ...(drm ? {drm} : {}),
@@ -372,6 +374,9 @@ export function MediaCatalogPlayer() {
   const [castStatus, setCastStatus] = useState<string | null>(null);
   const [isCasting, setIsCasting] = useState(false);
   const [castToastMessage, setCastToastMessage] = useState<string | null>(null);
+  const [lowNetworkToastMessage, setLowNetworkToastMessage] = useState<
+    string | null
+  >(null);
   /** True after user presses Play; cleared only on stream reset — used for Cast autoplay. */
   const castPlayIntentRef = useRef(false);
   /** `auto` = ABR; otherwise native video track `index` for fixed quality. */
@@ -1230,6 +1235,10 @@ export function MediaCatalogPlayer() {
         message={castToastMessage}
         onDismiss={() => setCastToastMessage(null)}
       />
+      <CastToast
+        message={lowNetworkToastMessage}
+        onDismiss={() => setLowNetworkToastMessage(null)}
+      />
       <View
         style={[styles.videoStage, videoLayoutStyle]}
         pointerEvents="box-none">
@@ -1241,7 +1250,7 @@ export function MediaCatalogPlayer() {
               ref={videoRef}
               source={videoSource}
               style={StyleSheet.absoluteFill}
-              resizeMode="contain"
+              aspectRatioMode="fit"
               paused={paused}
               isContentPlaying={isContentPlaying}
               muted={muted}
@@ -1278,6 +1287,16 @@ export function MediaCatalogPlayer() {
               onGoogleCastEvent={handleGoogleCastEvent}
               onFullscreenPlayerDidPresent={() => setIsFullscreen(true)}
               onFullscreenPlayerDidDismiss={() => setIsFullscreen(false)}
+              onLowNetworkDetected={(data: OnLowNetworkDetectedData) => {
+                console.log(
+                  'onLowNetworkDetection',
+                  data.currentSpeedBitsPerSecond,
+                  data.currentNetworkSpeed,
+                );
+                setLowNetworkToastMessage(
+                  `Slow network detected (${data.currentNetworkSpeed})`,
+                );
+              }}
             />
             <StatsForNerdsOverlay visible={statsVisible} stats={stats} />
           </View>
