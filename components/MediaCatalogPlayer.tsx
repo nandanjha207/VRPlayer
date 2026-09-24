@@ -379,6 +379,19 @@ export function MediaCatalogPlayer() {
   >(null);
   /** True after user presses Play; cleared only on stream reset — used for Cast autoplay. */
   const castPlayIntentRef = useRef(false);
+  /** Mirrors `isCasting` for catalog switches (avoid stale state in callbacks). */
+  const isCastingRef = useRef(false);
+  /**
+   * Native `src` bound to Video — while casting, stays on old item until cast zap finishes
+   * so React does not load the new URL locally at 0:00 before the receiver reloads.
+   */
+  const [boundPlayerSource, setBoundPlayerSource] = useState<
+    ReactVideoSource | undefined
+  >(undefined);
+  /** Brief true during setSource so fork Cast autoplay runs; not for local ExoPlayer. */
+  const [castTvPlayIntent, setCastTvPlayIntent] = useState(false);
+  /** TV playing state while casting (local `paused` prop stays true). */
+  const [castRemotePlaying, setCastRemotePlaying] = useState(false);
   /** `auto` = ABR; otherwise native video track `index` for fixed quality. */
   const [videoQualitySelection, setVideoQualitySelection] = useState<
     'auto' | number
@@ -417,6 +430,10 @@ export function MediaCatalogPlayer() {
   useEffect(() => {
     durationRef.current = duration;
   }, [duration]);
+
+  useEffect(() => {
+    isCastingRef.current = isCasting;
+  }, [isCasting]);
 
   useEffect(() => {
     setScrubPosterLoadFailed(false);
@@ -559,25 +576,37 @@ export function MediaCatalogPlayer() {
     );
   }, [selectedItem, playbackUri, activeSubtitlePreset]);
 
-  // Keep Cast session across channel changes (SDK BasicExample pattern).
-  // Supported → setSource → native Cast reloads TV.
-  // Unsupported → clear TV media (do not leave last item playing) + no local Video.
-  useEffect(() => {
-    if (!videoSource) {
+  const applyCastTimelineFromEvent = useCallback((e: OnGoogleCastEventData) => {
+    if (typeof e.currentTime !== 'number' || !Number.isFinite(e.currentTime)) {
       return;
     }
-    const castFriendly = isCastFriendlySource(videoSource);
-    castLog('source change', {
-      uri: typeof videoSource.uri === 'string' ? videoSource.uri : undefined,
-      type: videoSource.type,
-      castFriendly,
-    });
+    setCurrentTime(e.currentTime);
+    currentTimeRef.current = e.currentTime;
+    setSeekSliderValue(e.currentTime);
+  }, []);
+
+  // Apply catalog URL to native player. While casting, do not push new `source` prop until
+  // clearCastMedia + setSource with castTvPlayIntent (otherwise phone plays B at 0, TV stays on A).
+  useEffect(() => {
+    if (!videoSource) {
+      setBoundPlayerSource(undefined);
+      return;
+    }
+    let cancelled = false;
 
     (async () => {
       const casting = await checkIsCasting();
+      if (cancelled) {
+        return;
+      }
+      isCastingRef.current = casting;
+      setIsCasting(casting);
+
+      const castFriendly = isCastFriendlySource(videoSource);
+
       if (casting && !castFriendly) {
-        castLog('unsupported while casting → clearCastMedia (keep session)');
         clearCastMedia();
+        setCastTvPlayIntent(false);
         setPaused(true);
         setIsContentPlaying(false);
         castPlayIntentRef.current = false;
@@ -585,16 +614,40 @@ export function MediaCatalogPlayer() {
         return;
       }
 
-      videoRef.current?.setSource(videoSource);
-      if (casting && castFriendly) {
-        // isContentPlaying drives Cast autoplay; keep paused=true so local
-        // ExoPlayer does not resume (setPaused(false) while casting flips
-        // native isPaused and wakes the phone surface after setSrc).
-        setIsContentPlaying(true);
-        setHasEnded(false);
-        castPlayIntentRef.current = true;
+      if (!casting) {
+        setCastTvPlayIntent(false);
+        setBoundPlayerSource(videoSource);
+        videoRef.current?.setSource(videoSource);
+        return;
       }
+
+      castLog('cast zap → clear TV, then setSource with cast play intent');
+      clearCastMedia();
+      await new Promise<void>(resolve => {
+        setTimeout(resolve, 250);
+      });
+      if (cancelled) {
+        return;
+      }
+
+      setPaused(true);
+      setIsContentPlaying(false);
+      setCastTvPlayIntent(true);
+      setHasEnded(false);
+      castPlayIntentRef.current = true;
+      setBoundPlayerSource(videoSource);
+
+      requestAnimationFrame(() => {
+        if (cancelled) {
+          return;
+        }
+        videoRef.current?.setSource(videoSource);
+      });
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [videoSource]);
 
   useEffect(() => {
@@ -623,9 +676,6 @@ export function MediaCatalogPlayer() {
 
   const resetPlaybackForStreamChange = useCallback(() => {
     releaseSeekLock();
-    setPaused(true);
-    setIsContentPlaying(false);
-    castPlayIntentRef.current = false;
     setHasEnded(false);
     setIsBuffering(false);
     setDuration(0);
@@ -639,6 +689,15 @@ export function MediaCatalogPlayer() {
     setSelectedTextTrack({type: SelectedTrackType.DISABLED});
     setSelectedAudioTrack({type: SelectedTrackType.SYSTEM});
     setLastError(null);
+
+    if (isCastingRef.current) {
+      // Cast reload + TV play handled in videoSource effect.
+      return;
+    }
+
+    setPaused(true);
+    setIsContentPlaying(false);
+    castPlayIntentRef.current = false;
   }, [releaseSeekLock]);
 
   const scheduleHideOverlay = useCallback(() => {
@@ -723,6 +782,10 @@ export function MediaCatalogPlayer() {
   const handleLoad = useCallback(
     (data: OnLoadData) => {
       videoCallbacks.onLoad(data);
+      if (isCastingRef.current) {
+        setIsBuffering(false);
+        return;
+      }
       setDuration(data.duration);
       setCurrentTime(data.currentTime);
       currentTimeRef.current = data.currentTime;
@@ -794,6 +857,9 @@ export function MediaCatalogPlayer() {
   const handleProgress = useCallback(
     (data: OnProgressData) => {
       videoCallbacks.onProgress(data);
+      if (isCastingRef.current) {
+        return;
+      }
       if (isSeekingRef.current) {
         const target = seekTargetRef.current;
         if (
@@ -831,15 +897,15 @@ export function MediaCatalogPlayer() {
   }, []);
 
   const syncCastReceiverPlayback = useCallback(() => {
-    castLog('syncCastReceiverPlayback', {
-      action: 'set isContentPlaying=true for TV handoff (keep paused for local)',
-    });
-    // VR fork / Cast load uses isContentPlaying (or !isPaused) for autoplay.
-    // Do NOT setPaused(false) here — while casting that only flips native
-    // isPaused and lets local ExoPlayer start after the next setSrc.
-    setIsContentPlaying(true);
+    castLog('syncCastReceiverPlayback', {casting: isCastingRef.current});
     setHasEnded(false);
     castPlayIntentRef.current = true;
+    if (isCastingRef.current) {
+      setIsContentPlaying(false);
+      setCastTvPlayIntent(true);
+      return;
+    }
+    setIsContentPlaying(true);
   }, []);
 
   const handleGoogleCastEvent = useCallback((e: OnGoogleCastEventData) => {
@@ -848,6 +914,8 @@ export function MediaCatalogPlayer() {
     if (eventName === CastEvent.STARTED) {
       castLog('session STARTED — SDK loads TV media; not calling setSource');
       setIsCasting(true);
+      isCastingRef.current = true;
+      setCastTvPlayIntent(true);
       syncCastReceiverPlayback();
       setCastStatus(eventName);
       return;
@@ -867,19 +935,33 @@ export function MediaCatalogPlayer() {
           : 'receiver BUFFERING',
       );
       setIsCasting(true);
+      isCastingRef.current = true;
+      if (eventName === CastEvent.PLAY_STARTED) {
+        setCastTvPlayIntent(false);
+        setCastRemotePlaying(true);
+        applyCastTimelineFromEvent(e);
+      } else {
+        applyCastTimelineFromEvent(e);
+      }
       return;
     }
-    if (eventName === CastEvent.STOPPED || eventName === CastEvent.IDLE) {
-      castLog(
-        eventName === CastEvent.STOPPED
-          ? 'session STOPPED'
-          : 'session IDLE (no active media on receiver)',
-        {
-          reason: typeof e.reason === 'string' ? e.reason : undefined,
-          message: typeof e.message === 'string' ? e.message : undefined,
-        },
-      );
+    if (eventName === CastEvent.IDLE) {
+      castLog('receiver IDLE (between loads or after clearCastMedia)');
+      setCastRemotePlaying(false);
+      applyCastTimelineFromEvent(e);
+      void checkIsCasting().then(connected => {
+        isCastingRef.current = connected;
+        setIsCasting(connected);
+      });
+      return;
+    }
+    if (eventName === CastEvent.STOPPED) {
+      castLog('session STOPPED');
+      isCastingRef.current = false;
       setIsCasting(false);
+      setCastTvPlayIntent(false);
+      setCastRemotePlaying(false);
+      setPaused(true);
       setCastStatus(null);
       const reason =
         typeof e.reason === 'string' ? e.reason : undefined;
@@ -905,14 +987,18 @@ export function MediaCatalogPlayer() {
       castLog('session ERROR', {
         message: e.message ?? 'unknown',
       });
+      isCastingRef.current = false;
       setIsCasting(false);
+      setCastTvPlayIntent(false);
+      setCastRemotePlaying(false);
       setCastStatus(e.message ?? 'Cast error');
       setCastToastMessage(e.message ?? 'Cast error. Tap Cast to try again.');
       return;
     }
+    applyCastTimelineFromEvent(e);
     castLog(`unhandled cast event: ${eventName}`);
     setCastStatus(eventName);
-  }, [syncCastReceiverPlayback]);
+  }, [applyCastTimelineFromEvent]);
 
   const handleCastPress = useCallback(() => {
     castLog('cast icon pressed', {
@@ -966,6 +1052,19 @@ export function MediaCatalogPlayer() {
     if (!selectedItem?.playable || hasEnded) {
       return;
     }
+    if (isCastingRef.current || isCasting) {
+      if (castRemotePlaying) {
+        videoRef.current?.pause();
+        setCastRemotePlaying(false);
+      } else {
+        videoRef.current?.resume();
+        setCastRemotePlaying(true);
+      }
+      setIsContentPlaying(false);
+      setCastTvPlayIntent(false);
+      showOverlay();
+      return;
+    }
     if (paused) {
       castPlayIntentRef.current = true;
       setIsContentPlaying(true);
@@ -975,7 +1074,14 @@ export function MediaCatalogPlayer() {
       castPlayIntentRef.current = false;
     }
     showOverlay();
-  }, [hasEnded, paused, selectedItem?.playable, showOverlay]);
+  }, [
+    castRemotePlaying,
+    hasEnded,
+    isCasting,
+    paused,
+    selectedItem?.playable,
+    showOverlay,
+  ]);
 
   const commitSeek = useCallback(
     (target: number) => {
@@ -991,6 +1097,12 @@ export function MediaCatalogPlayer() {
       seekReleaseTimerRef.current = setTimeout(() => {
         releaseSeekLock();
       }, 2500);
+
+      if (isCastingRef.current) {
+        setIsContentPlaying(false);
+        setCastTvPlayIntent(false);
+        castLog('seek while casting → receiver only (local stays paused)');
+      }
       videoRef.current?.seek(target);
     },
     [releaseSeekLock],
@@ -1083,11 +1195,14 @@ export function MediaCatalogPlayer() {
     showOverlay();
   }, [isFullscreen, showOverlay]);
 
-  const selectCatalogItem = useCallback((item: CatalogStreamItem) => {
-    setSelectedId(item.id);
-    setSubtitlePresetId('main');
-    resetPlaybackForStreamChange();
-  }, [resetPlaybackForStreamChange]);
+  const selectCatalogItem = useCallback(
+    (item: CatalogStreamItem) => {
+      setSelectedId(item.id);
+      setSubtitlePresetId('main');
+      resetPlaybackForStreamChange();
+    },
+    [resetPlaybackForStreamChange],
+  );
 
   const selectSubtitlePreset = useCallback(
     (presetId: string) => {
@@ -1145,6 +1260,7 @@ export function MediaCatalogPlayer() {
     );
   }, [seekTrackWidth, maxSeek, seekSliderValue]);
   const showReplay = hasEnded && !loopEnabled;
+  const showPlayButton = isCasting ? !castRemotePlaying : paused;
   const isTextOff = selectedTextTrack.type === SelectedTrackType.DISABLED;
   const isLiveLayout =
     selectedItem?.tags.includes('live') || selectedItem?.tags.includes('dai');
@@ -1215,11 +1331,13 @@ export function MediaCatalogPlayer() {
               // Stable instance — remounting on channel change drops Cast provider.
               // Channel switches go through setSource (SDK BasicExample pattern).
               ref={videoRef}
-              source={videoSource}
+              source={boundPlayerSource ?? videoSource}
               style={StyleSheet.absoluteFill}
               aspectRatioMode="fit"
-              paused={paused}
-              isContentPlaying={isContentPlaying}
+              paused={isCasting ? true : paused}
+              isContentPlaying={
+                isCasting ? castTvPlayIntent : isContentPlaying
+              }
               muted={muted}
               volume={volume}
               fullscreen={isFullscreen}
@@ -1398,7 +1516,7 @@ export function MediaCatalogPlayer() {
               ) : (
                 <Pressable style={styles.playMain} onPress={togglePlayPause}>
                   <Text style={styles.playMainGlyph}>
-                    {paused ? '▶' : '⏸'}
+                    {showPlayButton ? '▶' : '⏸'}
                   </Text>
                 </Pressable>
               )}
