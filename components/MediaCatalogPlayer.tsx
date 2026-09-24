@@ -58,7 +58,7 @@ import {
 import {prepareVideoTracksForQualityUi} from './videoTrackQualityMenu';
 import {AirPlayRoutePickerButton} from './AirPlayRoutePickerButton';
 import {CastToast} from './CastToast';
-import {checkIsCasting, clearCastMedia, presentCastDialog, subscribeVRCastSessionEvents} from './castNative';
+import {checkIsCasting, clearCastMedia, presentCastDialog} from './castNative';
 import {castLog, castLogHelp, castLogNativeEvent} from './castDebugLog';
 import {isCastFriendlySource} from './isCastFriendlySource';
 import {VideoPlayer} from './videoFork';
@@ -841,39 +841,6 @@ export function MediaCatalogPlayer() {
     setHasEnded(false);
     castPlayIntentRef.current = true;
   }, []);
-
-  useEffect(() => {
-    return subscribeVRCastSessionEvents(event => {
-      castLog('VRCast session event', event);
-      if (event.event === 'starting') {
-        setCastStatus('connecting…');
-        return;
-      }
-      if (event.event === 'started') {
-        setIsCasting(true);
-        setCastStatus('connected');
-        // Do not setSource here — that restarts local playback on the phone.
-        // SDK loads TV media + pauseLocalPlaybackForCast() on session start.
-        syncCastReceiverPlayback();
-        return;
-      }
-      if (event.event === 'start_failed') {
-        setIsCasting(false);
-        setCastStatus('failed');
-        setCastToastMessage(
-          `Cast failed to start (code ${event.errorCode ?? 'unknown'}). Retry Cast.`,
-        );
-        return;
-      }
-      if (event.event === 'ended') {
-        setIsCasting(false);
-        setCastStatus(null);
-        setCastToastMessage(
-          'Cast session ended. Tap Cast, then Play to watch on TV again.',
-        );
-      }
-    });
-  }, [syncCastReceiverPlayback]);
 
   const handleGoogleCastEvent = useCallback((e: OnGoogleCastEventData) => {
     castLogNativeEvent(e);

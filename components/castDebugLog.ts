@@ -63,10 +63,10 @@ export function castLogSource(
 }
 
 /**
- * Android Studio Logcat:
- *   tag:VRCast | tag:ReactNativeJS
+ * Android Studio Logcat / Metro:
+ *   search [Cast] in ReactNativeJS
  * Terminal:
- *   adb logcat -s VRCast:I ReactNativeJS:V
+ *   adb logcat -s ReactNativeJS:V
  */
 export function castLogHelp(): void {
   if (!CAST_DEBUG) {
@@ -74,7 +74,7 @@ export function castLogHelp(): void {
   }
   castLog(
     'debug help',
-    'Filter Logcat: tag:VRCast OR ReactNativeJS, search [Cast]. ' +
+    'Filter Logcat/Metro for [Cast]. ' +
       'Phases: picker → session started → source load → play/buffer → stop/idle.',
   );
 }

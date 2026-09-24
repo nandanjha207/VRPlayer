@@ -6,9 +6,3 @@
 #
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
-
-# Keep sample-app Cast fallback bridge methods for release builds.
--keep public class com.vrplayer.cast.VRCastModule { *; }
--keepclassmembers class com.vrplayer.cast.VRCastModule {
-    @com.facebook.react.bridge.ReactMethod *;
-}

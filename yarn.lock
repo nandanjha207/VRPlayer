@@ -1763,10 +1763,10 @@
   dependencies:
     "@sinonjs/commons" "^3.0.0"
 
-"@ttn/vr-rn-player-sdk@1.0.6":
-  version "1.0.6"
-  resolved "http://10.100.1.64:8081/repository/npm-local/@ttn/vr-rn-player-sdk/-/vr-rn-player-sdk-1.0.6.tgz"
-  integrity sha512-nV1v7OIHsg1pYWBs9DrJqJ7QlZoDeY1VX5zgWn+yVFNOstZQ6lLXLpsmum8ZcsnHA+CzWkS654CoP8YxGC9N8w==
+"@ttn/vr-rn-player-sdk@^1.0.7":
+  version "1.0.7"
+  resolved "http://10.100.1.64:8081/repository/npm-local/@ttn/vr-rn-player-sdk/-/vr-rn-player-sdk-1.0.7.tgz"
+  integrity sha512-4TzXEtfy+E6Adu35VLyOtbIPfAzkawFv3e02cDVMRKV6w4n9WsqIzMhp2+BbKO4oEWvODl3ocTdjWYxM2a/ovw==
 
 "@types/babel__core@^7.1.14":
   version "7.20.5"
