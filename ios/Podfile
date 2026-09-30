@@ -35,5 +35,19 @@ target 'VRPlayer' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Xcode 15+ (and Xcode 27) reject simulator builds when pod targets use legacy
+    # IPHONEOS_DEPLOYMENT_TARGET values (e.g. react-native-device-info declares iOS 9.0).
+    minimum_ios = min_ios_version_supported
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_config|
+        deployment_target = build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET']
+        next if deployment_target.nil?
+
+        if deployment_target.to_f < minimum_ios.to_f
+          build_config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = minimum_ios
+        end
+      end
+    end
   end
 end
