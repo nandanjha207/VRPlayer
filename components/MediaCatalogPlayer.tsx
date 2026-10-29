@@ -701,6 +701,10 @@ export function MediaCatalogPlayer() {
   }, [releaseSeekLock]);
 
   const scheduleHideOverlay = useCallback(() => {
+    // Debug / Detox E2E: keep overlay mounted so testIDs stay visible (auto-hide races with load waits).
+    if (__DEV__) {
+      return;
+    }
     if (hideOverlayTimerRef.current) {
       clearTimeout(hideOverlayTimerRef.current);
     }
@@ -1161,6 +1165,15 @@ export function MediaCatalogPlayer() {
     [],
   );
 
+  const bumpVolume = useCallback(
+    (delta: number) => {
+      const base = muted ? volumeBeforeMuteRef.current : volume;
+      const next = Math.max(0, Math.min(1, Math.round((base + delta) * 100) / 100));
+      handleVolumeChange(next);
+    },
+    [handleVolumeChange, muted, volume],
+  );
+
   const handleSeekStart = useCallback(() => {
     isSeekingRef.current = true;
     seekTargetRef.current = null;
@@ -1312,8 +1325,10 @@ export function MediaCatalogPlayer() {
     !!videoSource &&
     !isCastFriendlySource(videoSource);
 
+  const effectiveVolumeForDisplay = muted ? 0 : volume;
+
   return (
-    <View style={styles.root}>
+    <View style={styles.root} testID="catalogPlayer">
       <CastToast
         message={castToastMessage}
         onDismiss={() => setCastToastMessage(null)}
@@ -1323,6 +1338,7 @@ export function MediaCatalogPlayer() {
         onDismiss={() => setLowNetworkToastMessage(null)}
       />
       <View
+        testID="playerSurface"
         style={[styles.videoStage, videoLayoutStyle]}
         pointerEvents="box-none">
         {selectedItem?.playable && videoSource && !hideLocalWhileCastUnsupported ? (
@@ -1435,7 +1451,10 @@ export function MediaCatalogPlayer() {
         )}
 
         {isBuffering && selectedItem?.playable && (
-          <View style={styles.bufferOverlay} pointerEvents="none">
+          <View
+            style={styles.bufferOverlay}
+            pointerEvents="none"
+            testID="playerLoadingIndicator">
             <ActivityIndicator size="large" color="#fff" />
           </View>
         )}
@@ -1514,7 +1533,10 @@ export function MediaCatalogPlayer() {
                   <Text style={styles.playMainGlyph}>↻</Text>
                 </Pressable>
               ) : (
-                <Pressable style={styles.playMain} onPress={togglePlayPause}>
+                <Pressable
+                  testID="playPauseButton"
+                  style={styles.playMain}
+                  onPress={togglePlayPause}>
                   <Text style={styles.playMainGlyph}>
                     {showPlayButton ? '▶' : '⏸'}
                   </Text>
@@ -1572,8 +1594,12 @@ export function MediaCatalogPlayer() {
                 </View>
               ) : null}
               <View style={styles.timeRow}>
-                <Text style={styles.timeMono}>{formatTime(currentTime)}</Text>
-                <Text style={styles.timeMono}>{formatTime(duration)}</Text>
+                <Text style={styles.timeMono} testID="playbackTimeCurrent">
+                  {formatTime(currentTime)}
+                </Text>
+                <Text style={styles.timeMono} testID="playbackTimeDuration">
+                  {formatTime(duration)}
+                </Text>
               </View>
               <Slider
                 style={styles.seekSlider}
@@ -1589,7 +1615,11 @@ export function MediaCatalogPlayer() {
                 onSlidingComplete={handleSeekComplete}
               />
               <View style={styles.overlayBottomRow}>
-                <Pressable style={styles.iconHit} onPress={toggleMute}>
+                <Pressable
+                  testID="muteButton"
+                  style={styles.iconHit}
+                  onPress={toggleMute}
+                  accessibilityState={{selected: muted}}>
                   <Text style={styles.iconGlyph}>{muted ? '🔇' : '🔊'}</Text>
                 </Pressable>
                 <View style={styles.flexOne} />
@@ -1603,7 +1633,7 @@ export function MediaCatalogPlayer() {
       </View>
 
       {lastError ? (
-        <Text style={styles.errorBanner} numberOfLines={3}>
+        <Text style={styles.errorBanner} numberOfLines={3} testID="playerError">
           Error: {lastError}
         </Text>
       ) : null}
@@ -1611,6 +1641,7 @@ export function MediaCatalogPlayer() {
       <View style={styles.listHeaderRow}>
         <Text style={styles.listHeader}>Playlist (curated QA)</Text>
         <Pressable
+          testID="openSettingsButton"
           onPress={() => {
             setModal('settings');
             showOverlay();
@@ -1642,7 +1673,9 @@ export function MediaCatalogPlayer() {
                 <Text style={styles.modalClose}>✕</Text>
               </Pressable>
             </View>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView
+              testID="settingsScrollView"
+              showsVerticalScrollIndicator={false}>
               <Text style={styles.modalSection}>Subtitle sample (sidecar)</Text>
               <View style={styles.presetWrap}>
                 {SUBTITLE_PRESETS.map(preset => (
@@ -1700,17 +1733,39 @@ export function MediaCatalogPlayer() {
               </Pressable>
 
               <Text style={styles.modalSection}>Volume</Text>
-              <Slider
-                style={styles.modalSlider}
-                minimumValue={0}
-                maximumValue={1}
-                step={0.02}
-                value={muted ? 0 : volume}
-                minimumTrackTintColor="#22c55e"
-                maximumTrackTintColor="#475569"
-                thumbTintColor="#4ade80"
-                onValueChange={handleVolumeChange}
-              />
+              <Text style={styles.modalHint} testID="volumeValue">
+                {effectiveVolumeForDisplay.toFixed(2)}
+              </Text>
+              <View style={styles.volumeRow}>
+                <Pressable
+                  testID="volumeStepDown"
+                  style={styles.volumeStepBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Decrease volume"
+                  onPress={() => bumpVolume(-0.02)}>
+                  <Text style={styles.volumeStepBtnText}>−</Text>
+                </Pressable>
+                <Slider
+                  testID="volumeSlider"
+                  style={styles.volumeSlider}
+                  minimumValue={0}
+                  maximumValue={1}
+                  step={0.02}
+                  value={muted ? 0 : volume}
+                  minimumTrackTintColor="#22c55e"
+                  maximumTrackTintColor="#475569"
+                  thumbTintColor="#4ade80"
+                  onValueChange={handleVolumeChange}
+                />
+                <Pressable
+                  testID="volumeStepUp"
+                  style={styles.volumeStepBtn}
+                  accessibilityRole="button"
+                  accessibilityLabel="Increase volume"
+                  onPress={() => bumpVolume(0.02)}>
+                  <Text style={styles.volumeStepBtnText}>+</Text>
+                </Pressable>
+              </View>
             </ScrollView>
           </Pressable>
         </Pressable>
@@ -2194,6 +2249,25 @@ const styles = StyleSheet.create({
   },
   fullBtnText: {color: '#f8fafc', fontWeight: '600'},
   modalSlider: {width: '100%', height: 40},
+  volumeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  volumeSlider: {flex: 1, height: 40},
+  volumeStepBtn: {
+    minWidth: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: '#334155',
+  },
+  volumeStepBtnText: {
+    color: '#f8fafc',
+    fontSize: 22,
+    fontWeight: '700',
+  },
   speedGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

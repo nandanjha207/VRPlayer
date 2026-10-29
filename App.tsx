@@ -23,6 +23,7 @@ function App() {
       <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
         <View style={styles.modeBar}>
           <Pressable
+            testID="modeTabCatalog"
             onPress={() => setMode('catalog')}
             style={[styles.modeTab, mode === 'catalog' && styles.modeTabActive]}>
             <Text
