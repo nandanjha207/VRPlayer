@@ -28,7 +28,9 @@ import {
   type OnBufferData,
   type OnLoadData,
   type OnLoadStartData,
+  type OnPlaybackStateChangedData,
   type OnProgressData,
+  type OnSeekData,
   type OnTextTracksData,
   type OnVideoErrorData,
   type ReactVideoSource,
@@ -343,6 +345,61 @@ export function MediaCatalogPlayer() {
   );
   const statsTapCountRef = useRef(0);
   const statsTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /**
+   * Detox E2E telemetry (__DEV__ only). Consumed by e2e/helpers/player.js + playerControls.test.js.
+   * e2ePlaybackState     — Tests 1–3 state machine (BUFFERING / PLAYING / PAUSED / …)
+   * e2eFirstFrameReady   — Tests 1–2 first frame (yes = onReadyForDisplay or progress fallback)
+   * e2ePlaybackStarted   — Test 1 playbackStarted proxy (first native isPlaying after load)
+   * e2eSeekEventCount    — Test 4 seeked proxy (increments on SDK onSeek)
+   * e2ePlaybackTimeSeconds / e2eDurationSeconds — Tests 3–4 sub-second position & duration
+   * e2eSeekTo60          — Test 4 only: programmatic seek(60) (Detox slider is unreliable)
+   */
+  const e2eLoadedRef = useRef(false);
+  const e2eBufferingRef = useRef(false);
+  const e2ePlayingRef = useRef(false);
+  const e2eSeekingRef = useRef(false);
+  const [e2ePlaybackState, setE2ePlaybackState] = useState('IDLE');
+  const [e2eFirstFrameReady, setE2eFirstFrameReady] = useState('no');
+  const [e2ePlaybackStarted, setE2ePlaybackStarted] = useState('no');
+  const [e2eSeekEventCount, setE2eSeekEventCount] = useState('0');
+  const [e2ePlaybackTimeSeconds, setE2ePlaybackTimeSeconds] = useState('0.00');
+  const [e2eDurationSeconds, setE2eDurationSeconds] = useState('0.00');
+
+  /** Maps SDK buffer + onPlaybackStateChanged + app paused flag → e2ePlaybackState text. */
+  const publishE2ePlaybackState = useCallback(() => {
+    if (!__DEV__) {
+      return;
+    }
+    let state = 'IDLE';
+    if (e2eBufferingRef.current) {
+      state = 'BUFFERING';
+    } else if (e2eSeekingRef.current) {
+      state = 'SEEKING';
+    } else if (e2ePlayingRef.current) {
+      state = 'PLAYING';
+    } else if (e2eLoadedRef.current && paused) {
+      state = 'PAUSED';
+    }
+    setE2ePlaybackState(state);
+  }, [paused]);
+
+  /** Clears all e2e testIDs when the user picks a new playlist row (new load). */
+  const resetE2eTelemetry = useCallback(() => {
+    if (!__DEV__) {
+      return;
+    }
+    e2eLoadedRef.current = false;
+    e2eBufferingRef.current = false;
+    e2ePlayingRef.current = false;
+    e2eSeekingRef.current = false;
+    setE2eFirstFrameReady('no');
+    setE2ePlaybackStarted('no');
+    setE2eSeekEventCount('0');
+    setE2ePlaybackState('IDLE');
+    setE2ePlaybackTimeSeconds('0.00');
+    setE2eDurationSeconds('0.00');
+  }, []);
 
   const [paused, setPaused] = useState(true);
   const [isContentPlaying, setIsContentPlaying] = useState(false);
@@ -689,6 +746,7 @@ export function MediaCatalogPlayer() {
     setSelectedTextTrack({type: SelectedTrackType.DISABLED});
     setSelectedAudioTrack({type: SelectedTrackType.SYSTEM});
     setLastError(null);
+    resetE2eTelemetry();
 
     if (isCastingRef.current) {
       // Cast reload + TV play handled in videoSource effect.
@@ -698,7 +756,7 @@ export function MediaCatalogPlayer() {
     setPaused(true);
     setIsContentPlaying(false);
     castPlayIntentRef.current = false;
-  }, [releaseSeekLock]);
+  }, [releaseSeekLock, resetE2eTelemetry]);
 
   const scheduleHideOverlay = useCallback(() => {
     // Debug / Detox E2E: keep overlay mounted so testIDs stay visible (auto-hide races with load waits).
@@ -790,7 +848,15 @@ export function MediaCatalogPlayer() {
         setIsBuffering(false);
         return;
       }
+      if (__DEV__) {
+        e2eLoadedRef.current = true;
+        publishE2ePlaybackState();
+      }
       setDuration(data.duration);
+      durationRef.current = data.duration;
+      if (__DEV__) {
+        setE2eDurationSeconds(data.duration.toFixed(2));
+      }
       setCurrentTime(data.currentTime);
       currentTimeRef.current = data.currentTime;
       setSeekSliderValue(data.currentTime);
@@ -812,12 +878,18 @@ export function MediaCatalogPlayer() {
         }
       }
     },
-    [videoCallbacks],
+    [videoCallbacks, publishE2ePlaybackState],
   );
 
   const handleLoadStart = useCallback(
     (data: OnLoadStartData) => {
       videoCallbacks.onLoadStart(data);
+      if (__DEV__) {
+        e2eLoadedRef.current = false;
+        setE2eFirstFrameReady('no');
+        setE2ePlaybackStarted('no');
+        setE2ePlaybackState('IDLE');
+      }
     },
     [videoCallbacks],
   );
@@ -871,6 +943,10 @@ export function MediaCatalogPlayer() {
           Math.abs(data.currentTime - target) < 1.5
         ) {
           releaseSeekLock();
+          if (__DEV__) {
+            e2eSeekingRef.current = false;
+            publishE2ePlaybackState();
+          }
         } else {
           return;
         }
@@ -878,16 +954,72 @@ export function MediaCatalogPlayer() {
       setCurrentTime(data.currentTime);
       currentTimeRef.current = data.currentTime;
       setSeekSliderValue(data.currentTime);
+      if (__DEV__) {
+        setE2ePlaybackTimeSeconds(data.currentTime.toFixed(2));
+        markE2eFirstFrameFromProgress(data.currentTime);
+      }
     },
-    [releaseSeekLock, videoCallbacks],
+    [releaseSeekLock, videoCallbacks, markE2eFirstFrameFromProgress, publishE2ePlaybackState],
   );
 
   const handleBuffer = useCallback(
     (data: OnBufferData) => {
       videoCallbacks.onBuffer(data);
       setIsBuffering(data.isBuffering);
+      if (__DEV__) {
+        e2eBufferingRef.current = data.isBuffering;
+        publishE2ePlaybackState();
+      }
     },
-    [videoCallbacks],
+    [videoCallbacks, publishE2ePlaybackState],
+  );
+
+  /** Test 1: sets e2ePlaybackStarted on first isPlaying; updates e2ePlaybackState for all playback tests. */
+  const handlePlaybackStateChanged = useCallback(
+    (data: OnPlaybackStateChangedData) => {
+      videoCallbacks.onPlaybackStateChanged(data);
+      if (__DEV__) {
+        const wasPlaying = e2ePlayingRef.current;
+        e2ePlayingRef.current = data.isPlaying === true;
+        e2eSeekingRef.current = data.isSeeking === true;
+        publishE2ePlaybackState();
+        if (
+          e2eLoadedRef.current &&
+          data.isPlaying === true &&
+          !wasPlaying
+        ) {
+          setE2ePlaybackStarted('yes');
+        }
+      }
+    },
+    [videoCallbacks, publishE2ePlaybackState],
+  );
+
+  /** Test 1–2: primary first-frame signal (SDK onReadyForDisplay). */
+  const handleReadyForDisplay = useCallback(() => {
+    if (__DEV__) {
+      setE2eFirstFrameReady('yes');
+    }
+  }, []);
+
+  /** Test 4: increments e2eSeekEventCount (SDK onSeek / “seeked” contract). */
+  const handleSeekEvent = useCallback((_data: OnSeekData) => {
+    if (__DEV__) {
+      setE2eSeekEventCount(prev => String(Number(prev) + 1));
+    }
+  }, []);
+
+  /** Test 1–2 fallback when onReadyForDisplay is slow on HLS (Android). */
+  const markE2eFirstFrameFromProgress = useCallback(
+    (currentTime: number) => {
+      if (!__DEV__) {
+        return;
+      }
+      if (currentTime > 0.05 && isContentPlaying && !paused) {
+        setE2eFirstFrameReady(prev => (prev === 'yes' ? prev : 'yes'));
+      }
+    },
+    [isContentPlaying, paused],
   );
 
   const handleError = useCallback((e: OnVideoErrorData) => {
@@ -1075,6 +1207,7 @@ export function MediaCatalogPlayer() {
       setPaused(false);
     } else {
       setPaused(true);
+      setIsContentPlaying(false);
       castPlayIntentRef.current = false;
     }
     showOverlay();
@@ -1374,7 +1507,9 @@ export function MediaCatalogPlayer() {
               onLoad={handleLoad}
               onProgress={handleProgress}
               onBuffer={handleBuffer}
-              onPlaybackStateChanged={videoCallbacks.onPlaybackStateChanged}
+              onPlaybackStateChanged={handlePlaybackStateChanged}
+              onReadyForDisplay={handleReadyForDisplay}
+              onSeek={handleSeekEvent}
               onBandwidthUpdate={videoCallbacks.onBandwidthUpdate}
               onExternalPlaybackChange={
                 videoCallbacks.onExternalPlaybackChange
@@ -1542,7 +1677,7 @@ export function MediaCatalogPlayer() {
                   </Text>
                 </Pressable>
               )}
-              <Pressable style={styles.roundBtn} onPress={skipForward}>
+              <Pressable style={styles.roundBtn} onPress={skipForward} testID="skipForwardButton">
                 <Text style={styles.roundBtnGlyph}>⏩</Text>
                 <Text style={styles.roundBtnCap}>10</Text>
               </Pressable>
@@ -1602,6 +1737,7 @@ export function MediaCatalogPlayer() {
                 </Text>
               </View>
               <Slider
+                testID="seekSlider"
                 style={styles.seekSlider}
                 minimumValue={0}
                 maximumValue={maxSeek}
@@ -1638,6 +1774,25 @@ export function MediaCatalogPlayer() {
         </Text>
       ) : null}
 
+      {/* Detox-readable hooks — see block comment above e2eLoadedRef */}
+      {__DEV__ ? (
+        <>
+          <View pointerEvents="box-none" style={styles.e2eTelemetry} accessible={false}>
+            <Text testID="e2ePlaybackState">{e2ePlaybackState}</Text>
+            <Text testID="e2eFirstFrameReady">{e2eFirstFrameReady}</Text>
+            <Text testID="e2ePlaybackStarted">{e2ePlaybackStarted}</Text>
+            <Text testID="e2eSeekEventCount">{e2eSeekEventCount}</Text>
+            <Text testID="e2ePlaybackTimeSeconds">{e2ePlaybackTimeSeconds}</Text>
+            <Text testID="e2eDurationSeconds">{e2eDurationSeconds}</Text>
+          </View>
+          <Pressable
+            testID="e2eSeekTo60"
+            onPress={() => commitSeek(60)}
+            style={styles.e2eSeekHit}
+          />
+        </>
+      ) : null}
+
       <View style={styles.listHeaderRow}>
         <Text style={styles.listHeader}>Playlist (curated QA)</Text>
         <Pressable
@@ -1651,6 +1806,7 @@ export function MediaCatalogPlayer() {
       </View>
 
       <FlatList
+        testID="playlistList"
         data={catalogItems}
         keyExtractor={i => i.id}
         renderItem={renderPlaylistRow}
@@ -2309,6 +2465,20 @@ const styles = StyleSheet.create({
   },
   trackRowText: {color: '#f8fafc', fontSize: 13},
   flexOne: {flex: 1},
+  e2eTelemetry: {
+    height: 1,
+    opacity: 0.01,
+    overflow: 'hidden',
+  },
+  e2eSeekHit: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 48,
+    height: 48,
+    opacity: 0.02,
+    zIndex: 9999,
+  },
 });
 
 export default MediaCatalogPlayer;
